@@ -1,24 +1,24 @@
-# Environment Variables Configuration
+# Environment Variables
 
-## Backend Configuration
+Every variable the code reads. The backend loads `backend/.env` via `dotenv`; the frontend reads Vite variables at build time.
 
-| Variable | Description | Default / Example |
+## Backend
+
+| Variable | Read by | Default | Example / notes |
+|---|---|---|---|
+| `SUPABASE_URL` | API server, headed runner, catalogue sync | none | `https://xyzcompany.supabase.co`. Required for the API. When unset, the headed runner switches to dry-run and the catalogue sync keeps the snapshot in memory only. |
+| `SUPABASE_SERVICE_ROLE_KEY` | API server, headed runner, catalogue sync | none | `eyJhbGciOi...`. Backend only; never expose it to the frontend. |
+| `CRON_SECRET` | API server | `dev-secret-123` | Any long random string. `POST /api/cron/scrape` accepts it as `x-cron-secret: <secret>` or `Authorization: Bearer <secret>`. Always set it in production. |
+| `PORT` | API server | `3001` | The Docker image sets `10000`. |
+| `CORS_ORIGIN` | API server | `*` | `https://ine-taupe.vercel.app`. A comma-separated list is allowed. |
+| `STORE_BASE_URL` | Catalogue client, Price Reader | `https://demo.inelabteamdev.com` | Trailing slash is stripped. |
+| `HEADLESS` | API server, headed runner | `true` | API server: `false` opens a visible browser. Headed runner: headed by default; `true` forces headless (same as `--headless`). |
+| `SLOW_MO_MS` | API server | `0` | Delay in ms between browser actions. The headed runner ignores it and uses 250 ms when headed. |
+| `SCRAPE_MAX_TRIES` | API server | `3` | Max tries per Tracked Product per Scrape Run. The headed runner always uses 3. |
+| `SCRAPE_TRY_TIMEOUT_MS` | API server, Price Reader | `45000` | Per-try timeout and Playwright page timeout, in ms. The headed runner's try timeout is fixed at 45 000 ms. |
+
+## Frontend
+
+| Variable | Default | Example / notes |
 |---|---|---|
-| `PORT` | HTTP port for the Express backend | `3001` (local) / `10000` (Render) |
-| `STORE_BASE_URL` | Base URL of the mock store | `https://demo.inelabteamdev.com` |
-| `CRON_SECRET` | Shared secret header required for `/api/cron/scrape` | `your-secret-key-here` |
-| `SUPABASE_URL` | Supabase project URL | `https://xyzcompany.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role secret key (backend only) | `eyJhbGciOi...` |
-| `CORS_ORIGIN` | Allowed origin for frontend requests | `https://your-frontend.vercel.app` (or `*` in local dev) |
-| `HEADLESS` | Run Playwright in headless mode | `true` (prod/CLI) or `false` (headed mode) |
-| `SLOW_MO_MS` | Slow-motion delay in ms for visible browser runs | `0` (prod) / `250` (headed debug/recording) |
-| `SCRAPE_MAX_TRIES` | Max tries per tracked product per scrape run | `3` |
-| `SCRAPE_TRY_TIMEOUT_MS` | Timeout per try before timeout error | `45000` |
-
----
-
-## Frontend Configuration
-
-| Variable | Description | Default / Example |
-|---|---|---|
-| `VITE_API_BASE_URL` | Base URL pointing to deployed Render Express API | `https://price-tracker-backend.onrender.com` (leave empty for local dev proxy) |
+| `VITE_API_BASE_URL` | empty | `https://ine-613p.onrender.com`. Leave empty locally: requests go to `/api`, which the Vite dev server proxies to `http://localhost:3001`. Set it in Vercel for production. |

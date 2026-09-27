@@ -59,7 +59,7 @@ components:
   button-primary:
     backgroundColor: "{colors.ink}"
     textColor: "{colors.surface}"
-    rounded: "{rounded.control}"
+    rounded: "12px"
     padding: "10px 16px"
   button-primary-hover:
     backgroundColor: "{colors.ink-hover}"
@@ -139,7 +139,7 @@ Strict monochrome plus a status triad.
 
 ## Layout
 
-The dashboard fills the viewport edge to edge on a white page, with 24px padding at lg (12–20px below). Main column order: header row (title, search) → KPI strip → success-rate chart beside the schedule panel → tracked-variants table → catalogue table. Panels are 20px apart. At lg and up it holds three columns: the 76px black sidebar, the main column, and a 320px rail at xl for Latest readings. Below lg, the rail becomes a horizontal black bar at the top. Below xl, the readings rail stacks after the content.
+The dashboard fills the viewport edge to edge on a white page, with 24px padding at lg (12–20px below). Main column order: header row (title, search) → KPI strip → success-rate chart beside the schedule panel → tracked-variants card grid → catalogue table. Panels are 20px apart. At lg and up it holds three columns: the 76px black sidebar, the main column, and a 320px rail at xl for Latest readings. Below lg, the sidebar becomes a horizontal black bar at the top. Below xl, the readings rail stacks after the content.
 
 ## Elevation & Depth
 
@@ -156,7 +156,7 @@ Softly rounded: panels 16px, controls 12px, icon chips 8px, sidebar 22px, sheets
 ## Components
 
 ### Buttons
-- **Shape:** 16px radius.
+- **Shape:** 12px radius.
 - **Primary:** Ink with white semibold text and no shadow; hover goes to Ink Hover. Disabled is neutral-300 with muted ink text.
 - **Secondary:** tile background with ink text; hover goes to Tile Deep.
 - **Icon rail buttons:** 44px squares on the black sidebar with white icons. Hover adds a white/15 fill, and a dark tooltip appears to the right.

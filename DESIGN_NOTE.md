@@ -4,7 +4,7 @@
 
 The INE mock store (`https://demo.inelabteamdev.com`) is deliberately constructed to simulate a real-world, hostile web scraping target:
 1. **Empty SPA Shell:** Raw HTML fetching returns an empty `<div id="root"></div>`.
-2. **Interactive Gating Mechanism:** Catalogue metadata (names, brands, categories, reviews, specs) is accessible via JSON APIs, but **price and stock are not**. Price is unlocked only when a user performs continuous pointer movements over the price area, dwells for $\ge 600\text{ms}$, and executes a trusted click event. This triggers a challenge token exchange that unlocks an obfuscated payload decoded client-side.
+2. **Interactive Gating Mechanism:** Catalogue metadata (names, brands, categories, reviews, specs) is accessible via JSON APIs, but **price and stock are not**. Price is unlocked only when a user makes at least 8 pointer moves over the price area, dwells for $\ge 600\text{ms}$, and executes a trusted click event. This triggers a challenge token exchange that unlocks an obfuscated payload decoded client-side.
 3. **Rotating CSS Manifest:** The storefront updates class names periodically (`/api/v2/ui/manifest`), rotating elements (`priceWrap`, `priceValue`, `stock`, etc.) and alternating between split character spans, non-breaking spaces, and zero-width characters.
 4. **Hostile Network Responses:** The store intentionally injects rate-limiting (`429`), server errors (`5xx`), and auth rejections (`401`/`403`).
 5. **Free-Tier Operational Constraints:** The backend runs in a memory-constrained container (512MB on Render Free Tier), where unconstrained parallel browser instances would trigger Out-Of-Memory (`OOMKilled`) termination. Furthermore, cron services enforce strict HTTP response timeouts.
@@ -20,7 +20,7 @@ The INE mock store (`https://demo.inelabteamdev.com`) is deliberately constructe
 ### B. Dynamic Selector Resolution
 - Before page navigation, the scraper retrieves the latest UI manifest from `/api/v2/ui/manifest`.
 - CSS selectors are constructed dynamically from `manifest.classes.priceWrap`, `manifest.classes.priceValue`, and `manifest.classes.stock`.
-- Zero hardcoded class names exist in the extraction engine.
+- No rotating class name is hardcoded. The only fixed selectors are structural classes the store does not rotate (`.offer-panel`, `.opt-picker`, `.avail-pill`, `.consent-scrim`), used as fallbacks and for panel state.
 
 ### C. Variant Confirmation & State Settlement
 - When navigating to a product page, the target variant option button is identified and clicked.
@@ -42,7 +42,7 @@ The INE mock store (`https://demo.inelabteamdev.com`) is deliberately constructe
 
 ### F. Text Normalisation & Anti-Obfuscation
 - `PriceNormalizer` systematically strips zero-width spaces (`\u200B-\u200D`), byte order marks (`\uFEFF`), directional markers (`\u202A-\u202E`), non-breaking spaces (`\u00A0`), and converts full-width numerals (`\uFF10-\uFF19`) to ASCII digits.
-- Handles currency formats (INR `₹`/`Rs.`, EUR `€`, USD `$`) and normalizes decimal/comma separators.
+- Handles currency formats (INR `₹`/`Rs.`, EUR `€`, USD `$`, GBP `£`) and normalizes decimal/comma separators.
 - Parses stock quantities and states (`in_stock`, `low_stock`, `out_of_stock`).
 
 ### G. Strict Validation & Honesty Constraint
@@ -61,7 +61,7 @@ The INE mock store (`https://demo.inelabteamdev.com`) is deliberately constructe
 
 ### H. Retry Policy & Isolation
 - Each tracked product is isolated. If product $A$ encounters a fatal error, product $B$ is still scraped.
-- Transient errors (`timeout`, `http_429`, `http_5xx`, `auth_rejected`, `navigation_failed`) trigger retries with exponential backoff and randomized jitter:
+- Retryable errors (`timeout`, `http_429`, `http_5xx`, `auth_rejected`, `navigation_failed`, `stale_price`, `invalid_price`, `invalid_stock`, `unknown`) trigger retries, each in a fresh browser context, with exponential backoff and randomized jitter (1 s initial, 8 s cap, ±20%):
   $$\text{Backoff} = \min(\text{MaxBackoff}, \text{InitialBackoff} \times 2^{\text{try}-1}) \times (1 + \text{jitter})$$
 - Non-retryable structural errors (`structure_changed`, `option_mismatch`) fail fast without wasting time budgets.
 
@@ -73,8 +73,9 @@ The INE mock store (`https://demo.inelabteamdev.com`) is deliberately constructe
 |---|---|---|
 | **Playwright vs. Token Reverse Engineering** | Playwright Chromium automation | Reverse-engineering client-side WebCrypto challenge keys is fragile across store bundle updates; Playwright provides authentic human execution. |
 | **Sequential vs. Parallel Scraping** | Sequential (one product after another) | Render Free Tier limits RAM to 512MB. Parallel tabs risk memory pressure and store rate-limits (`429`). |
-| **Asset Blocking** | Aborting images, fonts, media, stylesheets | Cuts network payload by >80% and reduces browser RAM footprint to ~90MB. |
+| **Asset Blocking** | Aborting images, fonts and media | Cuts network payload by >80% and reduces browser RAM footprint to ~90MB. |
 | **Cron Acknowledgment** | Immediate `202 Accepted` + background execution | cron-job.org drops connections after 10–30s. Immediate acknowledgment prevents false timeouts while the scrape run completes in the background. |
+| **Price Reader Verification** | Manual headed runs against the live store, not automated tests | The store is non-deterministic and its challenge flow is costly to fake. Automated Vitest tests cover everything around the reader (outcomes, retries, try timeout, isolation, normalisation, validation, CSV) through a fake reader. The risk is mitigated by strict validation (bad readings become `failed`, not wrong data) and by storing the error code and manifest revision on every attempt. |
 | **Run Locking & Stale Recovery** | Mutex in `scrape_runs` table; runs left `running` by a dead process are abandoned at boot, and any run older than 20 min when a new one starts | Prevents overlapping cron triggers. A crash, out-of-memory kill or redeploy mid-run no longer leaves the dashboard showing "running" and blocking manual runs. |
 
 ---
@@ -86,7 +87,7 @@ The INE mock store (`https://demo.inelabteamdev.com`) is deliberately constructe
 - **Outcomes:**
   - `success`: Valid reading attained on the very first try (`tries_count = 1`).
   - `retried`: Valid reading attained after $\ge 1$ failed tries (`tries_count > 1`).
-  - `failed`: No valid reading after exhausting all tries or encountering a fatal non-retryable error (`price = null`, `stock = null`, `error_code` recorded).
+  - `failed`: No valid reading after exhausting all tries or encountering a fatal non-retryable error (`price = null`, `stock_status = null`, `error_code` recorded).
 
 ---
 
@@ -102,7 +103,7 @@ During implementation, LLM assistance was utilized for boilerplate generation an
    - *Correction:* Class names rotate dynamically via `/api/v2/ui/manifest` (e.g. `ofw-h8`, `amt-h8`, `inv-h8`). Built dynamic manifest selector derivation.
 3. **Fixed Sleep Timing Regressions:**
    - *Initial AI suggestion:* Inserting `await sleep(3000)` after hover and click.
-   - *Correction:* Fixed sleeps cause flakiness under varying network loads. Replaced with `page.waitForFunction()` observing real DOM numeric settlement.
+   - *Correction:* Fixed sleeps cause flakiness under varying network loads. Replaced with state waits: `aria-pressed` confirmation for the option, and `page.waitForSelector()` for the price panel's `offer-ready` / `offer-failed` state. The only fixed delays left are the gesture's pointer spacing and dwell, which the store's gate itself measures.
 4. **Cookie Consent Scrim Pointer Interception:**
    - *Initial AI suggestion:* Check for `.consent-scrim` once right after navigation and dismiss it.
    - *Observed Issue:* On Render, 2 of 3 products failed with price timeouts that never happened locally. Reading the store bundle showed the banner mounts 1.5–5 s *after* app start (75% of loads) and needs 1–3 dismissals, so the one-shot check never saw it; on a slow CPU it landed mid-gesture and swallowed the click. Reproduced locally with Chrome CPU throttling (8×): 1/6 reads succeeded.

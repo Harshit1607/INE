@@ -17,21 +17,21 @@ Honest history: failed scrapes are recorded and shown as failures (gaps in chart
 
 ## Operating Context
 - Backend: Express on Render free tier (cold starts of 30–45 s), Docker Playwright, Supabase storage.
-- Frontend: React + Vite + Tailwind on Vercel, polling every 45 s.
+- Frontend: React + Vite + Tailwind on Vercel, polling every 45 s (every 5 s while a run is in progress).
 - Schedule: cron-job.org triggers a run every 2 hours (UTC); a run is overdue after 150 minutes.
-- Run triggers: `cron`, `manual`, `on_track`.
+- Run triggers: `cron`, `manual` (dashboard button, 10-minute cooldown), `on_track` (first read after tracking).
 
 ## Capabilities and Constraints
 - Search the mock store catalogue, pick a variant option, track it; duplicate active variants are refused.
 - Untrack a variant; its history stays saved.
-- Per variant: price/stock chart, scrape log (outcome, tries, duration, manifest revision, error code), data table.
+- Per variant: price chart, stock chart, and scrape log (outcome, tries, duration, price, stock, manifest revision, error code).
 - CSV export of all price history.
 - Outcomes: `success`, `retried`, `failed`. Stock: `in_stock`, `low_stock`, `out_of_stock`.
 - Terminology: see `docs/glossary.md`.
 
 ## Brand Commitments
 - Name: INE Price Tracker.
-- Colour theme chosen by the user: monochrome black, white and light gray (black sidebar and primary buttons, gray tiles on a full-bleed white page, from their "F." learning dashboard reference). Layout keeps the overlapping icon medallions and hero panel from the earlier "dosage" reference.
+- Colour theme chosen by the user: monochrome black, white and light gray (black sidebar and primary buttons, gray tiles on a full-bleed white page, from their "F." learning dashboard reference). Full design system: `DESIGN.md`.
 
 ## Evidence on Hand
 Only live data from the backend API. No testimonials, users, or metrics beyond what the API returns; never invent them.

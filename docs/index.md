@@ -1,23 +1,20 @@
-# INE Product Price Tracker — Documentation
+# INE Product Price Tracker: Documentation
 
-Welcome to the central documentation hub for the **INE Product Price Tracker**. This system is an honest, production-ready full-stack monitoring and scraping platform engineered specifically for INE's hostile mock e-commerce store ([demo.inelabteamdev.com](https://demo.inelabteamdev.com)).
+Setup, running, API, schedule and deployment are in the root [`README.md`](../README.md). This folder holds the deeper references.
 
----
-
-## 📚 Documentation Sections
-
-| Document | Purpose & Contents |
+| Document | Contents |
 |---|---|
-| **[Architecture](architecture.md)** | End-to-end system topology, module boundaries, data pipelines, concurrency mutexes, and deployment infrastructure. |
-| **[Design & Reliability](design.md)** | Scraping engine mechanisms, dynamic manifest resolution, human interaction simulation, text normalization, error classification, and UI/UX design. |
-| **[Glossary](glossary.md)** | Ubiquitous domain language, system entities, status definitions, and outcome classifications. |
-| **[Environment Configuration](env-config.md)** | Reference of all environment variables for backend and frontend deployments. |
-| **[Product Requirements Document (PRD)](../.scratch/price-tracker/PRD.md)** | Product vision, user stories, functional criteria, and acceptance requirements. |
-| **[Design Note & AI Corrections](../DESIGN_NOTE.md)** | Architectural trade-offs, engineering rationale, and the AI tool corrections log. |
+| [Architecture](architecture.md) | Topology, infrastructure, backend modules, run lock and recovery, memory limits, honesty guarantee, schedule health. |
+| [Technical and UX design](design.md) | The store's defences, the Price Reader's extraction flow, normalisation, error codes and retry policy, dashboard layout. |
+| [Glossary](glossary.md) | Domain terms (Tracked Product, Scrape Run, Scrape Attempt, Try, Outcome, …) and error codes. |
+| [Environment variables](env-config.md) | Every variable the backend and frontend read, with defaults and examples. |
+| [Design note](../DESIGN_NOTE.md) | Reliability strategy, trade-offs, and the AI corrections log. |
+| [Design system](../DESIGN.md) | Visual tokens, components and rules for the dashboard. |
+| [Product brief](../PRODUCT.md) | Users, purpose and product principles. |
+| [PRD](../.scratch/price-tracker/PRD.md) | Problem statement, user stories and implementation decisions. |
+| [Agent docs](agents/) | Conventions for coding agents: issue tracker, triage labels, domain docs. |
 
----
-
-## ⚡ Quick System Overview
+## System at a glance
 
 ```
                       ┌────────────────────────────┐
@@ -26,46 +23,17 @@ Welcome to the central documentation hub for the **INE Product Price Tracker**. 
                                     │ POST /api/cron/scrape
                                     ▼
  ┌──────────────────────┐     ┌────────────────────────────┐     ┌──────────────────────┐
- │      React SPA       │◄───►│       Express API          │◄───►│   Mock Store SPA     │
- │       (Vercel)       │     │     (Render Docker)        │     │ (demo.inelabteamdev) │
+ │      React SPA       │◄───►│       Express API          │◄───►│   INE mock store     │
+ │       (Vercel)       │     │     (Render, Docker)       │     │ (demo.inelabteamdev) │
  └──────────────────────┘     └─────────────┬──────────────┘     └──────────────────────┘
                                             │
                                             ▼
                               ┌────────────────────────────┐
-                              │    Supabase Postgres DB    │
+                              │    Supabase Postgres       │
                               └────────────────────────────┘
 ```
 
-### Core Capabilities
-1. **Lightweight Catalogue Sync:** Instant search across 960+ products via cached HTTP+JSON snapshots.
-2. **Interactive Playwright Scraper:** Headless Chromium automation executing human-like pointer movement, dwell, trusted click, and client-side challenge token resolution.
-3. **Rotating Selector Derivation:** Dynamically reads `/api/v2/ui/manifest` before each scrape to adapt to randomized class names.
-4. **Data Honesty Guarantee:** Database-level check constraints ensure that failed attempts never record synthetic zeros or stale prices. Line charts render truthful gaps.
-5. **Production Scheduling:** Triggered every 2 hours via cron-job.org with a warm-up ping and stale run recovery.
-
----
-
-## 🚀 Getting Started
-
-### Local Development
-```bash
-# 1. Start Backend API & Scraper
-cd backend
-npm install
-npx playwright install chromium
-npm run dev
-
-# 2. Start Frontend Dashboard
-cd ../frontend
-npm install
-npm run dev
-```
-
-### Running the Headed Scraper CLI
-```bash
-# Watch the scraper interact with the live store in real time:
-cd backend
-npm run scrape:headed:dry
-```
-
-For complete setup instructions, refer to the [Root README](../README.md).
+- **Catalogue over HTTP:** a snapshot of the store's ~960 products, synced from its JSON API, backs search and browsing.
+- **Price over Playwright:** headless Chromium passes the store's pointer, dwell and trusted-click gate, rejects stale quotes, and reads price and stock using class names from `/api/v2/ui/manifest`.
+- **Honest data:** a failed Scrape Attempt stores no price or stock (enforced by a database check constraint); charts show failures as gaps.
+- **Unattended schedule:** cron-job.org triggers a run every 2 hours after a warm-up ping; crashed runs are recovered automatically.
