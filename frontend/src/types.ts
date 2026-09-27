@@ -90,7 +90,10 @@ export interface RunHealth {
     retriedCount: number;
     failedCount: number;
   } | null;
+  /** Start of the latest cron run; the countdown and overdue flag are based on this. */
+  lastScheduledRunAt: string | null;
   isOverdue: boolean;
+  /** Minutes since the latest cron run (manual and on-track runs do not reset it). */
   timeSinceLastRunMinutes: number | null;
   checkedAt: string;
 }

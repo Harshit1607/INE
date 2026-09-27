@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Navbar } from './components/Navbar.js';
-import { RunHealthBanner } from './components/RunHealthBanner.js';
+import { Sidebar } from './components/Sidebar.js';
+import { OverviewPanel } from './components/OverviewPanel.js';
+import { ActivityRail } from './components/ActivityRail.js';
 import { TrackedProductCard } from './components/TrackedProductCard.js';
 import { ProductDetailModal } from './components/ProductDetailModal.js';
 import { SearchTrackModal } from './components/SearchTrackModal.js';
-import { RunHealth, TrackedProductOverview } from './types.js';
+import { CatalogSection } from './components/CatalogSection.js';
+import { RunHealth, StoreProduct, TrackedProductOverview } from './types.js';
 import { api } from './api.js';
-import { Activity, AlertCircle, Database, Package, Plus, ShieldCheck } from 'lucide-react';
+import { AlertCircle, Plus, Search } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [trackedProducts, setTrackedProducts] = useState<TrackedProductOverview[]>([]);
   const [runHealth, setRunHealth] = useState<RunHealth | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<TrackedProductOverview | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [trackTarget, setTrackTarget] = useState<StoreProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [backendOnline, setBackendOnline] = useState(false);
@@ -69,150 +72,192 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Summary Metrics
+  const [runNowPending, setRunNowPending] = useState(false);
+  const [runNowError, setRunNowError] = useState<string | null>(null);
+  const runInProgress = runHealth?.latestRun?.status === 'running';
+
+  // While a run is active, refresh every 5s so readings land as each variant finishes.
+  useEffect(() => {
+    if (!runInProgress) return;
+    const interval = setInterval(() => fetchData(false), 5000);
+    return () => clearInterval(interval);
+  }, [runInProgress, fetchData]);
+
+  const handleRunNow = async () => {
+    setRunNowPending(true);
+    setRunNowError(null);
+    try {
+      await api.startManualRun();
+      await fetchData(false);
+    } catch (err: unknown) {
+      setRunNowError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRunNowPending(false);
+    }
+  };
+
   const activeProducts = trackedProducts.filter((p) => p.active);
-  const totalScrapesAllTime = trackedProducts.reduce((sum, p) => sum + p.totalAttempts, 0);
+  const totalAttempts = trackedProducts.reduce((sum, p) => sum + p.totalAttempts, 0);
   const avgSuccessRate =
     trackedProducts.length > 0
-      ? Math.round(
-          trackedProducts.reduce((sum, p) => sum + p.successRate, 0) / trackedProducts.length
-        )
-      : 100;
+      ? Math.round(trackedProducts.reduce((sum, p) => sum + p.successRate, 0) / trackedProducts.length)
+      : null;
+  const orderedProducts = [...trackedProducts].sort((a, b) => Number(b.active) - Number(a.active));
+  const offline = Boolean(error) && !runHealth && trackedProducts.length === 0;
 
   return (
-    <div className="min-h-screen bg-[#030712] text-slate-100 flex flex-col selection:bg-indigo-500/30">
-      {/* Navbar */}
-      <Navbar
-        onOpenSearch={() => setIsSearchOpen(true)}
-        onRefresh={() => fetchData(false)}
-        isRefreshing={isRefreshing}
-        backendOnline={backendOnline}
-        isWaking={isWaking}
-      />
+    <div className="min-h-screen bg-canvas lg:p-6">
+      <div className="mx-auto flex min-h-screen max-w-[1640px] flex-col gap-5 bg-frame p-3 sm:p-5 lg:min-h-[calc(100vh-3rem)] lg:flex-row lg:gap-6 lg:rounded-[32px] lg:p-6 lg:shadow-frame">
+        <Sidebar
+          onOpenSearch={() => setIsSearchOpen(true)}
+          onRefresh={() => fetchData(false)}
+          isRefreshing={isRefreshing}
+          backendOnline={backendOnline}
+          isWaking={isWaking}
+        />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Run Health & Schedule Banner */}
-        <RunHealthBanner runHealth={runHealth} isWaking={isWaking} />
-
-        {/* Global Statistics Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-            <div className="flex items-center space-x-2 text-slate-400 text-xs font-medium">
-              <Package className="w-4 h-4 text-indigo-400" />
-              <span>Tracked Products</span>
-            </div>
-            <div className="mt-2 text-2xl font-bold text-white">
-              {activeProducts.length}
-              <span className="text-xs font-normal text-slate-400 ml-1.5">
-                ({trackedProducts.length} total)
-              </span>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-            <div className="flex items-center space-x-2 text-slate-400 text-xs font-medium">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>Overall Success Rate</span>
-            </div>
-            <div className="mt-2 text-2xl font-bold text-emerald-400">
-              {avgSuccessRate}%
-            </div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-            <div className="flex items-center space-x-2 text-slate-400 text-xs font-medium">
-              <Activity className="w-4 h-4 text-violet-400" />
-              <span>Total Scrape Attempts</span>
-            </div>
-            <div className="mt-2 text-2xl font-bold text-white">
-              {totalScrapesAllTime}
-            </div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-            <div className="flex items-center space-x-2 text-slate-400 text-xs font-medium">
-              <Database className="w-4 h-4 text-amber-400" />
-              <span>Scrape Schedule</span>
-            </div>
-            <div className="mt-2 text-2xl font-bold text-white">
-              2 Hours
-              <span className="text-xs font-normal text-slate-400 ml-1.5">cron-job.org</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Tracked Products Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-white tracking-tight">Active Tracked Variants</h2>
-              <p className="text-xs text-slate-400">
-                Click any product to inspect price trends, stock history, and the honest Scrape Log.
-              </p>
-            </div>
-            <button
-              onClick={() => setIsSearchOpen(true)}
-              className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/10 border border-indigo-500/20 text-xs font-semibold text-indigo-400 hover:bg-indigo-600/20 transition"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Variant</span>
-            </button>
-          </div>
-
-          {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="h-56 rounded-2xl bg-slate-900/40 border border-slate-800/60 animate-pulse"
-                />
-              ))}
-            </div>
-          ) : error ? (
-            <div className="p-8 rounded-2xl bg-slate-900/60 border border-slate-800 text-center space-y-3">
-              <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
-              <div className="text-base font-semibold text-slate-200">Unable to load dashboard data</div>
-              <p className="text-xs text-slate-400 max-w-md mx-auto">{error}</p>
-              <button
-                onClick={() => fetchData(true)}
-                className="px-4 py-2 rounded-lg bg-slate-800 text-xs font-semibold text-white hover:bg-slate-700 transition"
-              >
-                Retry Connection
-              </button>
-            </div>
-          ) : trackedProducts.length === 0 ? (
-            <div className="p-12 rounded-2xl bg-slate-900/40 border border-dashed border-slate-800 text-center space-y-4">
-              <Package className="w-10 h-10 text-slate-600 mx-auto" />
+        <main className="grid min-w-0 flex-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="min-w-0 space-y-8">
+            <header className="flex flex-col gap-4 pt-1 md:flex-row md:items-center md:justify-between">
               <div>
-                <h3 className="text-base font-semibold text-white">No products tracked yet</h3>
-                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                  Search the mock store catalogue and pick product variants to start tracking their price and stock over time.
+                <h1 className="text-[clamp(1.75rem,2.6vw,2.25rem)] font-bold leading-tight tracking-[-0.025em] text-ink">
+                  INE Price Tracker
+                </h1>
+                <p className="mt-1 text-sm font-medium text-ink-2">
+                  Price and stock for {activeProducts.length} tracked{' '}
+                  {activeProducts.length === 1 ? 'variant' : 'variants'} on the INE mock store, read every 2 hours.
                 </p>
               </div>
-              <button
-                onClick={() => setIsSearchOpen(true)}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition inline-flex items-center space-x-1.5"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Track First Product</span>
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {trackedProducts.map((product) => (
-                <TrackedProductCard
-                  key={product.id}
-                  product={product}
-                  onSelect={(p) => setSelectedProduct(p)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </main>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsSearchOpen(true)}
+                  className="group flex h-12 min-w-0 flex-1 items-center gap-2.5 rounded-2xl border-2 border-neutral-300 bg-white pl-4 pr-1.5 text-left text-sm font-medium text-ink-2 transition-colors hover:border-ink md:w-80 md:flex-none"
+                >
+                  <Search className="h-[18px] w-[18px] shrink-0 text-ink" strokeWidth={2.4} />
+                  <span className="min-w-0 flex-1 truncate">Search the catalogue to track…</span>
+                  <span className="flex h-8 shrink-0 items-center gap-1 rounded-xl bg-ink px-3 text-xs font-semibold text-white transition-colors group-hover:bg-neutral-800">
+                    <Plus className="h-3.5 w-3.5" />
+                    Track
+                  </span>
+                </button>
+                <span
+                  className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-tile px-3.5 lg:hidden text-sm font-semibold text-ink-2"
+                  role="status"
+                >
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      isWaking ? 'animate-pulse bg-warn-dot' : backendOnline ? 'bg-ok-dot' : 'bg-bad-dot'
+                    }`}
+                  />
+                  {isWaking ? 'Waking' : backendOnline ? 'Online' : loading ? 'Connecting' : 'Offline'}
+                </span>
+              </div>
+            </header>
 
-      {/* Product Detail & Scrape Log Modal */}
+            {error && !offline && (
+              <p className="flex items-center gap-2 rounded-2xl bg-bad-50 px-4 py-3 text-sm font-medium text-bad">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                Couldn&apos;t refresh ({error}). Showing the last loaded data.
+              </p>
+            )}
+
+            {offline ? (
+              <div className="rounded-panel bg-tile px-6 py-14 text-center">
+                <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-bad-50 text-bad">
+                  <AlertCircle className="h-7 w-7" />
+                </span>
+                <h2 className="mt-4 text-xl font-bold text-ink">The backend isn&apos;t answering</h2>
+                <p className="mx-auto mt-1.5 max-w-md text-sm text-ink-2">{error}</p>
+                <button
+                  type="button"
+                  onClick={() => fetchData(true)}
+                  className="mt-6 rounded-2xl bg-ink px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-neutral-800"
+                >
+                  Try again
+                </button>
+              </div>
+            ) : (
+              <>
+                <OverviewPanel
+                  runHealth={runHealth}
+                  isWaking={isWaking}
+                  activeCount={activeProducts.length}
+                  totalCount={trackedProducts.length}
+                  successRate={avgSuccessRate}
+                  attemptCount={totalAttempts}
+                  onRunNow={handleRunNow}
+                  runNowPending={runNowPending}
+                  runNowError={runNowError}
+                />
+
+                <section aria-labelledby="tracked-heading">
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      <h2 id="tracked-heading" className="text-xl font-bold tracking-[-0.01em] text-ink">
+                        Tracked variants
+                      </h2>
+                      <p className="mt-0.5 text-sm text-ink-2">Open a variant for its price chart and full scrape log.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsSearchOpen(true)}
+                      className="flex shrink-0 items-center gap-1.5 rounded-2xl bg-ink px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-neutral-800"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Track a variant</span>
+                    </button>
+                  </div>
+
+                  {loading ? (
+                    <div className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-x-5 gap-y-6">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="mt-7 h-72 animate-pulse rounded-panel bg-tile" />
+                      ))}
+                    </div>
+                  ) : trackedProducts.length === 0 ? (
+                    <div className="mt-5 rounded-panel border-2 border-dashed border-neutral-300 px-6 py-14 text-center">
+                      <h3 className="text-lg font-bold text-ink">Nothing tracked yet</h3>
+                      <p className="mx-auto mt-1 max-w-sm text-sm text-ink-2">
+                        Search the mock store catalogue and pick a variant. Its first reading starts right away.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setIsSearchOpen(true)}
+                        className="mt-5 inline-flex items-center gap-1.5 rounded-2xl bg-ink px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-neutral-800"
+                      >
+                        <Plus className="h-4 w-4" /> Track your first variant
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-x-5 gap-y-6">
+                      {orderedProducts.map((product) => (
+                        <TrackedProductCard key={product.id} product={product} onSelect={setSelectedProduct} />
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <CatalogSection
+                  trackedProducts={trackedProducts}
+                  onTrack={(product) => {
+                    setTrackTarget(product);
+                    setIsSearchOpen(true);
+                  }}
+                />
+              </>
+            )}
+
+          </div>
+
+          <ActivityRail products={trackedProducts} loading={loading} onSelect={setSelectedProduct} />
+
+          <footer className="pb-1 text-xs text-ink-3 xl:col-span-2">
+            React on Vercel · Express + Playwright on Render · Supabase
+          </footer>
+        </main>
+      </div>
+
       {selectedProduct && (
         <ProductDetailModal
           product={selectedProduct}
@@ -221,37 +266,17 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Search & Track Modal */}
       {isSearchOpen && (
         <SearchTrackModal
           existingTracked={trackedProducts}
-          onClose={() => setIsSearchOpen(false)}
+          initialProduct={trackTarget}
+          onClose={() => {
+            setIsSearchOpen(false);
+            setTrackTarget(null);
+          }}
           onTrackedSuccess={() => fetchData(false)}
         />
       )}
-
-      {/* Footer */}
-      <footer className="border-t border-slate-800/60 bg-slate-950/50 py-6 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
-          <div>
-            INE Product Price Tracker • React on Vercel + Express on Render (Docker Playwright) + Supabase
-          </div>
-          <div className="flex items-center space-x-4">
-            <a
-              href="https://demo.inelabteamdev.com"
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-slate-200 transition"
-            >
-              Mock Store
-            </a>
-            <span>•</span>
-            <a href={api.getExportUrl()} className="hover:text-slate-200 transition">
-              Download CSV
-            </a>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };

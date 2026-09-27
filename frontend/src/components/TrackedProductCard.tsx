@@ -1,6 +1,9 @@
 import React from 'react';
-import { CheckCircle, ChevronRight, Clock, RefreshCw, Tag, XCircle } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { TrackedProductOverview } from '../types.js';
+import { categoryIcon } from '../categoryIcon.js';
+import { formatAgo, formatCurrency } from '../format.js';
+import { OutcomePill, StockPill } from './StatusPill.js';
 
 interface TrackedProductCardProps {
   product: TrackedProductOverview;
@@ -9,151 +12,66 @@ interface TrackedProductCardProps {
 
 export const TrackedProductCard: React.FC<TrackedProductCardProps> = ({ product, onSelect }) => {
   const { latestReading } = product;
-
-  const formatCurrency = (amount: number | null, currency: string | null = 'INR') => {
-    if (amount === null || isNaN(amount)) return '—';
-    try {
-      return new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: currency || 'INR',
-        maximumFractionDigits: 0
-      }).format(amount);
-    } catch {
-      return `₹${amount.toLocaleString()}`;
-    }
-  };
-
-  const formatLocalTime = (isoString?: string | null) => {
-    if (!isoString) return 'Never';
-    return new Date(isoString).toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const getStockBadge = () => {
-    if (!latestReading || !latestReading.stockStatus) {
-      return <span className="text-xs text-slate-500">No stock data</span>;
-    }
-
-    const { stockStatus, stockQty } = latestReading;
-    if (stockStatus === 'out_of_stock') {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">
-          Sold Out
-        </span>
-      );
-    }
-    if (stockStatus === 'low_stock') {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
-          Low Stock {stockQty !== null ? `(${stockQty})` : ''}
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-        In Stock {stockQty !== null ? `(${stockQty})` : ''}
-      </span>
-    );
-  };
-
-  const getOutcomeBadge = () => {
-    if (!latestReading) return null;
-    const { outcome } = latestReading;
-    if (outcome === 'success') {
-      return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400">
-          <CheckCircle className="w-3 h-3" /> Success
-        </span>
-      );
-    }
-    if (outcome === 'retried') {
-      return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-400">
-          <RefreshCw className="w-3 h-3" /> Retried
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-400">
-        <XCircle className="w-3 h-3" /> Failed
-      </span>
-    );
-  };
+  const Icon = categoryIcon(product.category);
+  const failed = latestReading?.outcome === 'failed';
+  const barTone =
+    product.successRate >= 90 ? 'bg-ink' : product.successRate >= 60 ? 'bg-warn-dot' : 'bg-bad-dot';
 
   return (
-    <div
+    <button
+      type="button"
       onClick={() => onSelect(product)}
-      className={`group relative p-5 rounded-2xl bg-slate-900/90 border transition duration-200 cursor-pointer flex flex-col justify-between hover:shadow-xl hover:shadow-indigo-500/5 ${
-        product.active
-          ? 'border-slate-800 hover:border-indigo-500/50'
-          : 'border-slate-800/40 opacity-70 hover:opacity-100 hover:border-slate-700'
-      }`}
+      className="group relative mt-7 flex flex-col rounded-panel bg-tile p-5 pt-12 text-left transition duration-200 ease-out hover:-translate-y-0.5 hover:bg-white hover:shadow-lift"
     >
-      <div>
-        {/* Header Tags & Category */}
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center space-x-1.5 text-xs text-slate-400 font-medium truncate">
-            {product.brand && <span>{product.brand}</span>}
-            {product.brand && product.category && <span>•</span>}
-            {product.category && <span>{product.category}</span>}
-          </div>
-          <div className="flex items-center space-x-1.5">
-            {!product.active && (
-              <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
-                Inactive
-              </span>
-            )}
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              {product.successRate}% Success
-            </span>
-          </div>
+      <span
+        className={`absolute -top-7 left-5 flex h-14 w-14 items-center justify-center rounded-2xl shadow-card ${
+          product.active ? 'bg-white text-ink' : 'bg-white text-ink-3'
+        }`}
+        aria-hidden="true"
+      >
+        <Icon className="h-6 w-6" strokeWidth={2} />
+      </span>
+
+      <span className="absolute right-4 top-3 flex items-center gap-2">
+        {!product.active && (
+          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-ink-2">Untracked</span>
+        )}
+        {latestReading && <OutcomePill outcome={latestReading.outcome} />}
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-ink-2 transition-colors group-hover:bg-ink group-hover:text-white">
+          <ArrowUpRight className="h-4 w-4" />
+        </span>
+      </span>
+
+      <span className="line-clamp-1 text-lg font-bold tracking-[-0.01em] text-ink">{product.productName}</span>
+      <p className="mt-0.5 truncate text-sm font-medium text-ink-3">
+        {[product.brand, product.category].filter(Boolean).join(' · ')}
+      </p>
+      <p className="mt-2 truncate text-sm text-ink-2">
+        {product.optionAxis} <span className="font-semibold text-ink">{product.optionLabel}</span>
+      </p>
+
+      <p className="tnum mt-4 text-3xl font-bold leading-none tracking-[-0.02em] text-ink">
+        {failed ? <span className="text-xl font-semibold text-ink-3">No reading last run</span> : formatCurrency(latestReading?.price, latestReading?.currency ?? 'INR')}
+      </p>
+
+      <p className="mt-2 text-xs font-medium text-ink-3">Last read {formatAgo(product.lastSuccessfulScrape)}</p>
+
+      <div className="mt-5">
+        <div className="flex items-baseline justify-between text-sm">
+          <span className="font-semibold text-ink-2">Success rate</span>
+          <span className="tnum font-bold text-ink">{product.successRate}%</span>
         </div>
-
-        {/* Product Title */}
-        <h3 className="text-base font-bold text-white group-hover:text-indigo-400 transition line-clamp-1">
-          {product.productName}
-        </h3>
-
-        {/* Option Variant Badge */}
-        <div className="mt-2 flex items-center space-x-1.5 text-xs">
-          <Tag className="w-3.5 h-3.5 text-slate-500" />
-          <span className="text-slate-400">{product.optionAxis}:</span>
-          <span className="font-semibold text-slate-200">{product.optionLabel}</span>
-          <span className="text-[10px] text-slate-500">({product.optionId})</span>
-        </div>
-
-        {/* Price & Stock Display */}
-        <div className="mt-4 pt-4 border-t border-slate-800/60 flex items-baseline justify-between">
-          <div>
-            <div className="text-2xl font-extrabold tracking-tight text-white">
-              {latestReading?.outcome === 'failed'
-                ? <span className="text-slate-500 text-lg">No reading</span>
-                : formatCurrency(latestReading?.price ?? null, latestReading?.currency ?? 'INR')}
-            </div>
-            <div className="mt-1 flex items-center gap-2">
-              {getStockBadge()}
-              {getOutcomeBadge()}
-            </div>
-          </div>
-
-          <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-white group-hover:bg-indigo-600 transition">
-            <ChevronRight className="w-4 h-4" />
-          </div>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/10">
+          <div className={`anim-grow h-full rounded-full ${barTone}`} style={{ width: `${product.successRate}%` }} />
         </div>
       </div>
 
-      {/* Footer Info */}
-      <div className="mt-4 pt-3 border-t border-slate-800/40 flex items-center justify-between text-[11px] text-slate-400">
-        <div className="flex items-center space-x-1">
-          <Clock className="w-3 h-3 text-slate-500" />
-          <span>Last Success: {formatLocalTime(product.lastSuccessfulScrape)}</span>
-        </div>
-        <span>{product.totalAttempts} total scrapes</span>
+      <div className="mt-5 flex items-center justify-between gap-3">
+        <span className="tnum text-xs font-medium text-ink-3">
+          {product.totalAttempts} scrapes
+        </span>
+        <StockPill status={failed ? null : latestReading?.stockStatus ?? null} qty={latestReading?.stockQty ?? null} />
       </div>
-    </div>
+    </button>
   );
 };

@@ -33,6 +33,12 @@ export const api = {
     return handleResponse(res);
   },
 
+  /** Starts a manual scrape of all tracked variants; rejects with the backend's cooldown/busy message. */
+  startManualRun: async (): Promise<{ runId: string; startedAt: string }> => {
+    const res = await fetch(`${API_BASE}/api/runs/manual`, { method: 'POST' });
+    return handleResponse(res);
+  },
+
   getTrackedProducts: async (): Promise<TrackedProductOverview[]> => {
     const res = await fetch(`${API_BASE}/api/tracked`);
     const data = await handleResponse<{ trackedProducts: TrackedProductOverview[] }>(res);
@@ -48,6 +54,11 @@ export const api = {
     const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(q)}`);
     const data = await handleResponse<{ results: StoreProduct[] }>(res);
     return data.results;
+  },
+
+  listCatalog: async (offset: number, limit: number): Promise<{ products: StoreProduct[]; total: number }> => {
+    const res = await fetch(`${API_BASE}/api/catalog?offset=${offset}&limit=${limit}`);
+    return handleResponse(res);
   },
 
   getStoreProductDetail: async (id: number): Promise<StoreProductDetail> => {

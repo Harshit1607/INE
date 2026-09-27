@@ -1,30 +1,142 @@
 import React, { useState, useEffect } from 'react';
-import {
-  X,
-  Tag,
-  CheckCircle2,
-  RefreshCw,
-  XCircle,
-  Trash2,
-  ExternalLink
-} from 'lucide-react';
+import { ExternalLink, Loader2, Trash2, X } from 'lucide-react';
 import {
   LineChart,
   Line,
   XAxis,
   YAxis,
   CartesianGrid,
+  ReferenceLine,
   Tooltip,
   ResponsiveContainer
 } from 'recharts';
 import { ScrapeAttempt, TrackedProductOverview } from '../types.js';
 import { api } from '../api.js';
+import { categoryIcon } from '../categoryIcon.js';
+import { formatAgo, formatCurrency, formatLocalTime, stockLabel } from '../format.js';
+import { OutcomePill } from './StatusPill.js';
 
 interface ProductDetailModalProps {
   product: TrackedProductOverview;
   onClose: () => void;
   onProductUpdated: () => void;
 }
+
+interface HistoryPoint {
+  t: string;
+  price: number | null;
+  stock: number | null;
+  stockStatus: string | null;
+  outcome: ScrapeAttempt['outcome'];
+  error: string | null;
+}
+
+interface HistoryChartProps {
+  data: HistoryPoint[];
+  dataKey: 'price' | 'stock';
+  /** Recharts y-domain; stock starts at 0 so a sell-out reads as a drop to the axis. */
+  yDomain: [number | 'auto', number | 'auto'];
+  yTickFormatter: (value: number) => string;
+  yWidth: number;
+  /** Tooltip text for a successful reading. */
+  formatValue: (point: HistoryPoint) => string;
+  seriesLabel: string;
+  emptyLabel: string;
+  legendRead: string;
+  legendFailed: string;
+}
+
+// Failed attempts carry null, so the line breaks at them (connectNulls=false) and a red dashed
+// marker sits at each one; nothing is drawn as zero or carried forward.
+const HistoryChart: React.FC<HistoryChartProps> = ({
+  data,
+  dataKey,
+  yDomain,
+  yTickFormatter,
+  yWidth,
+  formatValue,
+  seriesLabel,
+  emptyLabel,
+  legendRead,
+  legendFailed
+}) => {
+  const failedTimes = data.filter((d) => d.outcome === 'failed').map((d) => d.t);
+  return (
+    <div className="rounded-panel bg-tile p-4 sm:p-6">
+      <div className="h-72 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 12, right: 12, left: 4, bottom: 0 }}>
+            <CartesianGrid vertical={false} stroke="#DDDDDD" strokeDasharray="4 6" />
+            <XAxis
+              dataKey="t"
+              tickFormatter={(v: string) =>
+                new Date(v).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+              }
+              stroke="#6B6B6B"
+              tick={{ fill: '#6B6B6B', fontSize: 12 }}
+              tickLine={false}
+              axisLine={{ stroke: '#DDDDDD' }}
+              minTickGap={36}
+            />
+            <YAxis
+              domain={yDomain}
+              allowDecimals={false}
+              tickFormatter={(v) => yTickFormatter(Number(v))}
+              tick={{ fill: '#6B6B6B', fontSize: 12 }}
+              tickLine={false}
+              axisLine={false}
+              width={yWidth}
+            />
+            {failedTimes.map((t) => (
+              <ReferenceLine key={t} x={t} stroke="#E0485A" strokeDasharray="3 4" strokeWidth={1.5} />
+            ))}
+            <Tooltip
+              cursor={{ stroke: '#A3A3A3', strokeWidth: 1 }}
+              contentStyle={{
+                backgroundColor: '#0A0A0A',
+                border: 'none',
+                borderRadius: 12,
+                boxShadow: '0 18px 36px -12px rgba(10,10,10,0.35)',
+                fontSize: 13,
+                color: '#FFFFFF',
+                fontFamily: 'inherit'
+              }}
+              itemStyle={{ color: '#FFFFFF', fontWeight: 600 }}
+              labelStyle={{ color: '#A3A3A3' }}
+              formatter={(_value: unknown, _name, item) => {
+                const point = item?.payload as HistoryPoint | undefined;
+                if (!point || point.outcome === 'failed') {
+                  return [`Failed${point?.error ? ` · ${point.error}` : ''}`, emptyLabel];
+                }
+                return [formatValue(point), seriesLabel];
+              }}
+              labelFormatter={(v: string) => formatLocalTime(v, true)}
+            />
+            <Line
+              type="linear"
+              dataKey={dataKey}
+              stroke="#0A0A0A"
+              strokeWidth={2.5}
+              dot={{ fill: '#0A0A0A', stroke: '#F4F4F4', strokeWidth: 2, r: 4 }}
+              activeDot={{ r: 6, fill: '#0A0A0A', stroke: '#FFFFFF', strokeWidth: 2 }}
+              connectNulls={false}
+              isAnimationActive={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-ink-2">
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-ink" /> {legendRead}
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="h-3.5 w-0 border-l-2 border-dashed border-bad-dot" /> {legendFailed}
+        </span>
+        <span className="text-ink-3">Failures break the line; they are never drawn as zero or carried forward.</span>
+      </div>
+    </div>
+  );
+};
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   product,
@@ -35,7 +147,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isUntracking, setIsUntracking] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chart' | 'log' | 'table'>('chart');
+  const [activeTab, setActiveTab] = useState<'chart' | 'stock' | 'log'>('chart');
 
   useEffect(() => {
     let isMounted = true;
@@ -78,316 +190,262 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     }
   };
 
-  const formatCurrency = (amount: number | null, currency: string | null = 'INR') => {
-    if (amount === null || isNaN(amount)) return '—';
-    try {
-      return new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: currency || 'INR',
-        maximumFractionDigits: 0
-      }).format(amount);
-    } catch {
-      return `₹${amount.toLocaleString()}`;
-    }
-  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
-  const formatLocalTime = (isoString?: string) => {
-    if (!isoString) return '—';
-    return new Date(isoString).toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
-  };
-
-  // Prepare chart data (ordered chronologically ascending)
-  const chartData = [...attempts]
+  // Chronological; failed attempts keep price and stock null so the lines break instead of dropping to zero.
+  // Sold out is a real reading of 0 units, so it plots on the axis rather than as a gap.
+  const chartData: HistoryPoint[] = [...attempts]
     .sort((a, b) => new Date(a.finishedAt).getTime() - new Date(b.finishedAt).getTime())
     .map((att) => {
-      const isFailed = att.outcome === 'failed';
+      const failed = att.outcome === 'failed';
       return {
-        timestamp: new Date(att.finishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        fullDate: formatLocalTime(att.finishedAt),
-        // Honest rule: price is null on failure so Recharts draws a GAP rather than 0!
-        price: isFailed ? null : att.price,
-        stockStatus: att.stockStatus || 'Failed',
-        stockQty: att.stockQty,
+        t: att.finishedAt,
+        price: failed ? null : att.price,
+        stock: failed ? null : att.stockQty,
+        stockStatus: failed ? null : att.stockStatus,
         outcome: att.outcome,
-        tries: att.triesCount,
         error: att.errorCode
       };
     });
 
+  const { latestReading } = product;
+  const Icon = categoryIcon(product.category);
+  const tabs = [
+    { id: 'chart', label: 'Price history' },
+    { id: 'stock', label: 'Stock history' },
+    { id: 'log', label: `Scrape log · ${attempts.length}` }
+  ] as const;
+
+  const th = 'px-4 py-3 font-semibold';
+  const td = 'px-4 py-3';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-4xl max-h-[90vh] bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="p-6 border-b border-slate-800 flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
-              <span>{product.brand}</span>
-              <span>•</span>
-              <span>{product.category}</span>
-              <span>•</span>
-              <span>Store Product #{product.storeProductId}</span>
-            </div>
-            <h2 className="text-xl font-bold text-white mt-1">{product.productName}</h2>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                <Tag className="w-3.5 h-3.5" />
-                {product.optionAxis}: {product.optionLabel}
+    <div
+      className="anim-scrim fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="detail-title"
+        className="anim-sheet relative flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-[28px] bg-white shadow-frame sm:rounded-[28px]"
+      >
+        {/* Header band */}
+        <div className="bg-ink text-white">
+          <div className="flex items-start justify-between gap-4 px-5 pt-5 sm:px-7 sm:pt-6">
+            <div className="flex min-w-0 items-start gap-4">
+              <span className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 sm:flex">
+                <Icon className="h-7 w-7" />
               </span>
-              <span className="text-xs text-slate-500">Option ID: {product.optionId}</span>
-              <a
-                href={`https://demo.inelabteamdev.com/item/${product.storeProductId}`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs text-slate-400 hover:text-indigo-400 flex items-center gap-1 transition ml-2"
+              <div className="min-w-0">
+                <h2 id="detail-title" className="text-2xl font-bold leading-tight tracking-[-0.02em]">
+                  {product.productName}
+                </h2>
+                <p className="mt-0.5 truncate text-sm font-medium text-ink-soft">
+                  {[product.brand, product.category, `Store #${product.storeProductId}`].filter(Boolean).join(' · ')}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                  <span className="rounded-full bg-white/15 px-3 py-1 font-semibold">
+                    {product.optionAxis} · {product.optionLabel}
+                  </span>
+                  <a
+                    href={`https://demo.inelabteamdev.com/item/${product.storeProductId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 font-semibold text-white underline decoration-white/40 underline-offset-4 hover:decoration-white"
+                  >
+                    View on mock store <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </div>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {product.active && (
+                <button
+                  type="button"
+                  onClick={handleUntrack}
+                  disabled={isUntracking}
+                  className="hidden items-center gap-1.5 rounded-2xl bg-white/15 px-3.5 py-2 text-sm font-semibold transition-colors hover:bg-white hover:text-bad disabled:opacity-60 sm:flex"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {isUntracking ? 'Untracking…' : 'Untrack'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 transition-colors hover:bg-white hover:text-ink"
               >
-                <span>View on Mock Store</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
+                <X className="h-5 w-5" />
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {product.active && (
+          <dl className="mt-6 grid grid-cols-2 bg-white/10 sm:grid-cols-4">
+            <div className="px-5 py-4 sm:px-7">
+              <dt className="text-xs font-semibold text-ink-soft">Latest price</dt>
+              <dd className="tnum mt-0.5 text-2xl font-bold">
+                {latestReading?.outcome === 'failed' ? (
+                  <span className="text-lg">No reading</span>
+                ) : (
+                  formatCurrency(latestReading?.price, latestReading?.currency)
+                )}
+              </dd>
+            </div>
+            <div className="px-5 py-4 sm:px-7">
+              <dt className="text-xs font-semibold text-ink-soft">Stock</dt>
+              <dd className="tnum mt-0.5 text-lg font-bold">
+                {latestReading?.outcome === 'failed'
+                  ? 'Unknown'
+                  : stockLabel(latestReading?.stockStatus ?? null, latestReading?.stockQty ?? null)}
+              </dd>
+            </div>
+            <div className="px-5 py-4 sm:px-7">
+              <dt className="text-xs font-semibold text-ink-soft">Success rate</dt>
+              <dd className="tnum mt-0.5 text-2xl font-bold">{product.successRate}%</dd>
+            </div>
+            <div className="px-5 py-4 sm:px-7">
+              <dt className="text-xs font-semibold text-ink-soft">Last read</dt>
+              <dd className="mt-0.5 text-lg font-bold">{formatAgo(product.lastSuccessfulScrape)}</dd>
+            </div>
+          </dl>
+        </div>
+
+        {/* Tabs */}
+        <div className="px-5 pt-5 sm:px-7">
+          <div role="tablist" aria-label="History views" className="flex w-full gap-1 rounded-2xl bg-tile p-1 sm:w-auto sm:inline-flex">
+            {tabs.map((t) => (
               <button
-                onClick={handleUntrack}
-                disabled={isUntracking}
-                className="px-3 py-1.5 rounded-lg border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 text-xs font-medium transition flex items-center gap-1.5"
-                title="Stop Scraping"
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={`flex-1 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-colors sm:flex-none ${
+                  activeTab === t.id ? 'bg-ink text-white' : 'text-ink-2 hover:text-ink'
+                }`}
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Untrack</span>
+                {t.label}
               </button>
-            )}
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            ))}
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="px-6 border-b border-slate-800 flex space-x-6">
-          <button
-            onClick={() => setActiveTab('chart')}
-            className={`py-3 text-sm font-semibold border-b-2 transition ${
-              activeTab === 'chart'
-                ? 'border-indigo-500 text-indigo-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Price & Stock History Chart
-          </button>
-          <button
-            onClick={() => setActiveTab('log')}
-            className={`py-3 text-sm font-semibold border-b-2 transition ${
-              activeTab === 'log'
-                ? 'border-indigo-500 text-indigo-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Honest Scrape Log ({attempts.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('table')}
-            className={`py-3 text-sm font-semibold border-b-2 transition ${
-              activeTab === 'table'
-                ? 'border-indigo-500 text-indigo-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Data Table
-          </button>
-        </div>
-
-        {/* Body Content */}
-        <div className="p-6 flex-1 overflow-y-auto">
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-7">
           {loading ? (
-            <div className="py-16 text-center text-slate-400 flex flex-col items-center justify-center">
-              <RefreshCw className="w-6 h-6 animate-spin text-indigo-400 mb-2" />
-              <p className="text-sm">Loading scrape history and logs...</p>
+            <div className="flex flex-col items-center justify-center py-20 text-ink-2">
+              <Loader2 className="mb-3 h-6 w-6 animate-spin text-ink" />
+              <p className="text-sm font-medium">Loading scrape history…</p>
             </div>
           ) : error ? (
-            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm">
-              Failed to load history: {error}
-            </div>
+            <p className="rounded-2xl bg-bad-50 px-4 py-3 text-sm font-medium text-bad">
+              Couldn&apos;t load the history: {error}
+            </p>
           ) : attempts.length === 0 ? (
-            <div className="py-16 text-center text-slate-500 text-sm">
-              No scrape attempts recorded yet. An automated scrape will occur shortly.
-            </div>
+            <p className="py-20 text-center text-sm text-ink-2">
+              No scrape attempts yet. The first reading is on its way.
+            </p>
           ) : (
             <>
-              {/* Tab 1: Chart View */}
               {activeTab === 'chart' && (
-                <div className="space-y-4">
-                  <div className="h-72 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                        <XAxis dataKey="timestamp" stroke="#64748b" fontSize={12} />
-                        <YAxis
-                          stroke="#64748b"
-                          fontSize={12}
-                          domain={['auto', 'auto']}
-                          tickFormatter={(v) => `₹${Number(v).toLocaleString()}`}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: '#0f172a',
-                            borderColor: '#334155',
-                            borderRadius: '0.75rem',
-                            fontSize: '12px',
-                            color: '#f8fafc'
-                          }}
-                          formatter={(value: unknown) => {
-                            if (value === null) return ['Failed Attempt (Gap)', 'Price'];
-                            return [`₹${Number(value).toLocaleString()}`, 'Price'];
-                          }}
-                          labelFormatter={(_label, payload) => {
-                            if (payload && payload[0]) {
-                              return payload[0].payload.fullDate;
-                            }
-                            return _label;
-                          }}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="price"
-                          stroke="#6366f1"
-                          strokeWidth={2.5}
-                          dot={{ fill: '#6366f1', r: 4 }}
-                          activeDot={{ r: 6, fill: '#a5b4fc' }}
-                          connectNulls={false} // NEVER connect nulls: failed attempts appear honestly as gaps!
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <p className="text-xs text-slate-400 text-center">
-                    Note: Failed scrape attempts honestly appear as <strong>gaps</strong> in the chart line rather than drawn as zero or misleading interpolated values.
-                  </p>
-                </div>
+                <HistoryChart
+                  data={chartData}
+                  dataKey="price"
+                  yDomain={['auto', 'auto']}
+                  yTickFormatter={(v) => `₹${v.toLocaleString('en-IN')}`}
+                  yWidth={76}
+                  formatValue={(p) => formatCurrency(p.price)}
+                  seriesLabel="Price"
+                  emptyLabel="No price"
+                  legendRead="Price read"
+                  legendFailed="Failed attempt, no price recorded"
+                />
               )}
 
-              {/* Tab 2: Honest Scrape Log */}
+              {activeTab === 'stock' && (
+                <HistoryChart
+                  data={chartData}
+                  dataKey="stock"
+                  yDomain={[0, 'auto']}
+                  yTickFormatter={(v) => `${v}`}
+                  yWidth={44}
+                  formatValue={(p) => stockLabel(p.stockStatus, p.stock)}
+                  seriesLabel="Stock"
+                  emptyLabel="No stock"
+                  legendRead="Units available (sold out = 0)"
+                  legendFailed="Failed attempt, no stock recorded"
+                />
+              )}
+
               {activeTab === 'log' && (
-                <div className="space-y-3">
-                  <div className="overflow-x-auto rounded-xl border border-slate-800">
-                    <table className="w-full text-left text-xs text-slate-300">
-                      <thead className="bg-slate-950 text-slate-400 uppercase font-semibold border-b border-slate-800">
-                        <tr>
-                          <th className="px-4 py-3">Timestamp (Local)</th>
-                          <th className="px-4 py-3">Outcome</th>
-                          <th className="px-4 py-3">Tries</th>
-                          <th className="px-4 py-3">Duration</th>
-                          <th className="px-4 py-3">Price</th>
-                          <th className="px-4 py-3">Stock</th>
-                          <th className="px-4 py-3">Manifest Rev</th>
-                          <th className="px-4 py-3">Details / Error</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800">
-                        {attempts.map((att) => {
-                          const isSuccess = att.outcome === 'success';
-                          const isRetried = att.outcome === 'retried';
-                          const isFailed = att.outcome === 'failed';
-
-                          return (
-                            <tr key={att.id} className="hover:bg-slate-800/40 transition">
-                              <td className="px-4 py-3 font-mono text-slate-400">
-                                {formatLocalTime(att.finishedAt)}
-                              </td>
-                              <td className="px-4 py-3">
-                                {isSuccess && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                    <CheckCircle2 className="w-3 h-3" /> success
-                                  </span>
-                                )}
-                                {isRetried && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                                    <RefreshCw className="w-3 h-3" /> retried
-                                  </span>
-                                )}
-                                {isFailed && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                                    <XCircle className="w-3 h-3" /> failed
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 font-semibold">{att.triesCount} {att.triesCount === 1 ? 'try' : 'tries'}</td>
-                              <td className="px-4 py-3 text-slate-400">{(att.durationMs / 1000).toFixed(1)}s</td>
-                              <td className="px-4 py-3 font-bold text-white">
-                                {isFailed ? <span className="text-slate-500">—</span> : formatCurrency(att.price, att.currency)}
-                              </td>
-                              <td className="px-4 py-3">
-                                {isFailed ? (
-                                  <span className="text-slate-500">—</span>
-                                ) : (
-                                  <span>{att.stockStatus} {att.stockQty !== null ? `(${att.stockQty})` : ''}</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 font-mono text-slate-400">
-                                {att.manifestRevision || '—'}
-                              </td>
-                              <td className="px-4 py-3 text-slate-400 max-w-xs truncate">
-                                {isFailed ? (
-                                  <span className="text-rose-400" title={att.errorDetail || att.errorCode || ''}>
-                                    [{att.errorCode}] {att.errorDetail || 'Scrape failed'}
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-500">OK</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 3: Data Table View */}
-              {activeTab === 'table' && (
-                <div className="overflow-x-auto rounded-xl border border-slate-800">
-                  <table className="w-full text-left text-xs text-slate-300">
-                    <thead className="bg-slate-950 text-slate-400 uppercase font-semibold border-b border-slate-800">
+                <div className="overflow-x-auto rounded-panel bg-tile">
+                  <table className="w-full min-w-[820px] text-left text-sm">
+                    <thead className="border-b border-line text-xs text-ink-3">
                       <tr>
-                        <th className="px-4 py-3">Finished At (UTC)</th>
-                        <th className="px-4 py-3">Product ID</th>
-                        <th className="px-4 py-3">Option</th>
-                        <th className="px-4 py-3">Price</th>
-                        <th className="px-4 py-3">Stock Status</th>
-                        <th className="px-4 py-3">Outcome</th>
+                        <th className={th}>Finished (local)</th>
+                        <th className={th}>Outcome</th>
+                        <th className={`${th} text-right`}>Tries</th>
+                        <th className={`${th} text-right`}>Duration</th>
+                        <th className={`${th} text-right`}>Price</th>
+                        <th className={th}>Stock</th>
+                        <th className={`${th} text-right`}>Manifest</th>
+                        <th className={th}>Detail</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800">
-                      {attempts.map((att) => (
-                        <tr key={att.id} className="hover:bg-slate-800/40">
-                          <td className="px-4 py-3 font-mono">{new Date(att.finishedAt).toISOString()}</td>
-                          <td className="px-4 py-3">{product.storeProductId}</td>
-                          <td className="px-4 py-3">{product.optionLabel}</td>
-                          <td className="px-4 py-3 font-bold text-white">
-                            {att.outcome === 'failed' ? '—' : formatCurrency(att.price, att.currency)}
-                          </td>
-                          <td className="px-4 py-3">
-                            {att.outcome === 'failed' ? '—' : `${att.stockStatus} ${att.stockQty ? `(${att.stockQty})` : ''}`}
-                          </td>
-                          <td className="px-4 py-3 capitalize">{att.outcome}</td>
-                        </tr>
-                      ))}
+                    <tbody className="tnum divide-y divide-line text-ink">
+                      {attempts.map((att) => {
+                        const isFailed = att.outcome === 'failed';
+                        return (
+                          <tr key={att.id} className="transition-colors hover:bg-tile-2">
+                            <td className={`${td} whitespace-nowrap text-ink-2`}>{formatLocalTime(att.finishedAt, true)}</td>
+                            <td className={td}>
+                              <OutcomePill outcome={att.outcome} />
+                            </td>
+                            <td className={`${td} text-right font-semibold`}>{att.triesCount}</td>
+                            <td className={`${td} text-right text-ink-2`}>{(att.durationMs / 1000).toFixed(1)}s</td>
+                            <td className={`${td} whitespace-nowrap text-right font-bold`}>
+                              {isFailed ? <span className="text-ink-3">—</span> : formatCurrency(att.price, att.currency)}
+                            </td>
+                            <td className={`${td} whitespace-nowrap`}>
+                              {isFailed ? <span className="text-ink-3">—</span> : stockLabel(att.stockStatus, att.stockQty)}
+                            </td>
+                            <td className={`${td} text-right text-ink-2`}>{att.manifestRevision ?? '—'}</td>
+                            <td className={`${td} max-w-xs`}>
+                              {isFailed ? (
+                                <span className="block truncate text-bad" title={att.errorDetail || att.errorCode || ''}>
+                                  <code className="rounded bg-bad-50 px-1.5 py-0.5 text-xs font-semibold">{att.errorCode}</code>{' '}
+                                  {att.errorDetail || 'Scrape failed'}
+                                </span>
+                              ) : (
+                                <span className="text-ink-3">OK</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               )}
             </>
           )}
+            {product.active && (
+              <button
+                type="button"
+                onClick={handleUntrack}
+                disabled={isUntracking}
+                className="mt-6 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-bad-50 px-4 py-3 text-sm font-semibold text-bad sm:hidden"
+              >
+                <Trash2 className="h-4 w-4" />
+                {isUntracking ? 'Untracking…' : 'Untrack this variant'}
+              </button>
+            )}
         </div>
       </div>
     </div>

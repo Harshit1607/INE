@@ -106,36 +106,33 @@ where $r \in [0, 1)$ provides $\pm 20\%$ randomized jitter to avoid thundering h
 
 ## 4. Frontend UI/UX Design System
 
-The dashboard interface emphasizes transparency, readability, and immediate diagnostic feedback.
+Monochrome: pale gray canvas, white rounded app frame, black sidebar and primary buttons, light gray tiles; colour appears only for scrape outcomes. Urbanist Variable type. Tokens live in `frontend/tailwind.config.js`.
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│ [Logo] INE Price Tracker   [Backend Online] [Refresh] [Export CSV] [+Track]│
-├────────────────────────────────────────────────────────────────────────┤
-│ [✓ Schedule Healthy]  Last Run: Today, 14:00 (12m ago)  •  3 Success   │
-├────────────────────────────────────────────────────────────────────────┤
-│ [Tracked Products: 3] [Success Rate: 100%] [Total Scrapes: 48] [2h]    │
-├────────────────────────────────────────────────────────────────────────┤
-│  Active Tracked Variants                                               │
-│  ┌─────────────────────────┐ ┌─────────────────────────┐               │
-│  │ Veloria Smart Panel     │ │ Veloria Console Zen     │               │
-│  │ Tone: Neutral white     │ │ Edition: Standard       │               │
-│  │ ₹16,044                 │ │ ₹24,999                 │               │
-│  │ [In Stock (18)] [✓ OK]  │ │ [In Stock (12)] [✓ OK]  │               │
-│  └─────────────────────────┘ └─────────────────────────┘               │
-└────────────────────────────────────────────────────────────────────────┘
+┌──────┬──────────────────────────────────────────────┬───────────────────┐
+│ [≡]  │ INE Price Tracker        [Search catalogue…] [● Online] │ Latest readings   │
+│ [+]  │ ┌ Scrape schedule ────────────┐ ┌ Latest run ─┐ │ [All|Retried&fail]│
+│ [↻]  │ │ Next run in 1h 22m          │ │ Healthy     │ │ Saffrix Panel ₹16k│
+│ [↓]  │ │ ●────────|──|~~~ (0–3h)     │ ├ Read in run ┤ │ Pinecrest  timeout│
+│ [↗]  │ │ 4 of 5 │ 92% │ 90 attempts  │ │ 3 / 4       │ │ …                 │
+│      │ └─────────────────────────────┘ └─────────────┘ │ How readings are  │
+│      │ Tracked variants                  [+ Track]    │ taken · CSV · Store│
+│  ●   │ [card] [card] [card]                           │                   │
+└──────┴──────────────────────────────────────────────┴───────────────────┘
 ```
 
 ### Key UI Features
-1. **Run-Health Banner:**
-   - **Healthy:** Green badge displaying last run time and breakdown.
-   - **Overdue Warning:** Amber/Rose alert displayed when no scrape has occurred for $> 150\text{ minutes}$ ($2.5\text{ hours}$).
-   - **Cold-Start Waking Banner:** Informative notice when Render free-tier is spinning up from idle.
-2. **Price History Chart:**
+1. **Scrape schedule panel (`OverviewPanel`):**
+   - Cadence track from 0 to 3 h with ticks at due (2 h) and overdue (2.5 h, the backend's $150\text{ min}$ rule); a marker sits at time since the last run.
+   - Headline reads "Next run in …", "Next run due now", "Overdue by …", or "Run in progress"; the overdue zone and marker turn red.
+   - Cold-start state ("Waking the backend") while Render free tier spins up.
+   - Latest-run status card and a per-outcome breakdown of the last run.
+2. **Variant cards and Latest readings rail:** outcome pill, latest price, success-rate bar, stock pill; the rail filters to retried and failed readings.
+3. **Price History Chart:**
    - Built with Recharts.
-   - Configured with `connectNulls={false}` so failed attempts appear as honest gaps.
-3. **Scrape Log Table:**
+   - Configured with `connectNulls={false}` so failed attempts appear as honest gaps, each marked with a red dashed reference line.
+4. **Scrape Log Table:**
    - Displays all historical attempts with local time, outcome badge (`success`, `retried`, `failed`), try count, duration in seconds, manifest revision, and machine error code.
-4. **Live Search & Option Picker Modal:**
+5. **Live Search & Option Picker Modal:**
    - Debounced substring search against the indexed catalog.
    - Live variant selector with duplicate detection to prevent tracking the same variant twice.
