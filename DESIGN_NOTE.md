@@ -14,7 +14,7 @@ The INE mock store (`https://demo.inelabteamdev.com`) is deliberately constructe
 ## 2. Reliability Strategy
 
 ### A. Architectural Split: Lightweight HTTP vs. Browser Automation
-- **Search & Catalogue (HTTP + JSON):** Paged through `/api/v2/listings` and `/api/v2/items/:id` using pure `fetch` with exponential backoff. No browser instances are spawned for search, product inspection, or snapshot sync.
+- **Search & Catalogue (HTTP + JSON):** `/api/v2/listings` and `/api/v2/items/:id` via plain `fetch` with exponential backoff. No browser instances are spawned for search, product inspection, or snapshot sync. The listings API returns a **fresh random sample on every page request** (pages overlap, `limit` capped at 60), so walking pages 1–16 once collected only ~630 of 960 products, and the first snapshot held just 257. The sync now keeps sampling until the unique set reaches the advertised `count` (about 125 requests for 960) or pages stop adding new products, and logs how many it got.
 - **Price & Stock Extraction (Playwright):** A real Chromium browser is used exclusively for the gated price interaction where client-side challenge execution and DOM rendering are strictly mandatory.
 
 ### B. Dynamic Selector Resolution

@@ -81,6 +81,20 @@ export function createRouter(deps: RouteDependencies): Router {
     }
   });
 
+  // 3b. Catalog browse (paged, ordered by name)
+  router.get('/catalog', async (req: Request, res: Response) => {
+    const offset = Math.max(0, parseInt(String(req.query.offset ?? '0'), 10) || 0);
+    const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit ?? '10'), 10) || 10));
+
+    try {
+      const { products, total } = await catalogSnapshot.listProducts(offset, limit);
+      res.json({ products, total, offset, limit });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ error: `Catalog listing failed: ${msg}` });
+    }
+  });
+
   // 4. Store Product Detail & Options (Live)
   router.get('/store-products/:id', async (req: Request, res: Response) => {
     const productId = parseInt(req.params.id, 10);

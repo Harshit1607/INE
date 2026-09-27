@@ -6,6 +6,13 @@ export interface CatalogClientOptions {
   maxRetries?: number;
 }
 
+/** Upper bound on listing requests per sync (~130 are needed to see all 960 products). */
+const LISTING_MAX_REQUESTS = 400;
+/** Stop once this many consecutive pages add nothing new (catalogue shrank or count is stale). */
+const LISTING_STALL_PAGES = 40;
+/** Give up after this many consecutive failed pages (each already retried internally). */
+const LISTING_MAX_CONSECUTIVE_FAILURES = 8;
+
 export class CatalogClient {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
@@ -71,17 +78,45 @@ export class CatalogClient {
     return this.fetchWithRetry(`/api/v2/listings?page=${page}&limit=${limit}`);
   }
 
-  public async fetchAllListings(): Promise<StoreProduct[]> {
-    const firstPage = await this.fetchListings(1, 100);
-    const allResults = [...firstPage.results];
-    const totalPages = firstPage.totalPages;
+  /**
+   * The store's listings API returns a fresh random sample for every page request (pages overlap,
+   * `limit` is capped at 60), so walking pages 1..N sees only ~2/3 of the catalogue. Keep sampling
+   * until the unique set reaches the advertised `count`, or until pages stop yielding new products.
+   */
+  public async fetchAllListings(
+    logger: (msg: string) => void = () => {}
+  ): Promise<StoreProduct[]> {
+    const firstPage = await this.fetchListings(1, 60);
+    const expected = firstPage.count;
+    const totalPages = Math.max(1, firstPage.totalPages);
+    const byId = new Map<number, StoreProduct>();
+    for (const p of firstPage.results) byId.set(p.id, p);
 
-    for (let page = 2; page <= totalPages; page++) {
-      const pageData = await this.fetchListings(page, 100);
-      allResults.push(...pageData.results);
+    let requests = 1;
+    let pagesWithoutNew = 0;
+    let consecutiveFailures = 0;
+    while (
+      byId.size < expected &&
+      requests < LISTING_MAX_REQUESTS &&
+      pagesWithoutNew < LISTING_STALL_PAGES &&
+      consecutiveFailures < LISTING_MAX_CONSECUTIVE_FAILURES
+    ) {
+      const page = (requests % totalPages) + 1;
+      requests++;
+      try {
+        const pageData = await this.fetchListings(page, 60);
+        consecutiveFailures = 0;
+        const before = byId.size;
+        for (const p of pageData.results) byId.set(p.id, p);
+        pagesWithoutNew = byId.size > before ? 0 : pagesWithoutNew + 1;
+      } catch (err: unknown) {
+        consecutiveFailures++;
+        logger(`[CatalogClient] Listing page ${page} failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
 
-    return allResults;
+    logger(`[CatalogClient] Collected ${byId.size}/${expected} unique products in ${requests} page requests.`);
+    return [...byId.values()];
   }
 
   public async fetchItem(id: number): Promise<StoreProductDetail> {

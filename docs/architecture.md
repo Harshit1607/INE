@@ -63,7 +63,7 @@ The INE Product Price Tracker is architected as a decoupled, multi-tiered system
 | Tier | Provider | Deployment Artifact | Role & Configuration |
 |---|---|---|---|
 | **Frontend** | Vercel | Single-Page React App | Dashboard, variant search, price history charts, Scrape Log table, CSV export trigger. Never accesses DB directly. |
-| **Backend** | Render | Docker Container (`mcr.microsoft.com/playwright:v1.50.1-noble`) | Express API, background queue, Playwright Chromium scraper, catalog snapshot sync. |
+| **Backend** | Render | Docker Container (`mcr.microsoft.com/playwright:v1.63.0-noble`) | Express API, background queue, Playwright Chromium scraper, catalog snapshot sync. |
 | **Database** | Supabase | Managed PostgreSQL 15 | Relational persistence, unique constraints, case-insensitive search indexes, honesty check constraint. |
 | **Scheduler** | cron-job.org | External Cron Service | Triggers backend scrape every 2 hours (`0 */2 * * *` UTC) with a warm-up ping 1 min prior (`59 */2 * * *` UTC). |
 

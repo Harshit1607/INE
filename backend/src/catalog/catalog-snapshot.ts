@@ -46,10 +46,10 @@ export class CatalogSnapshotService {
     const startTime = Date.now();
     logger('[CatalogSnapshot] Starting full catalog synchronization...');
 
-    const products = await this.catalogClient.fetchAllListings();
+    const products = await this.catalogClient.fetchAllListings(logger);
     logger(`[CatalogSnapshot] Fetched ${products.length} products from store API.`);
 
-    this.inMemoryCache = products;
+    this.inMemoryCache = [...products].sort((a, b) => a.name.localeCompare(b.name) || a.id - b.id);
     this.lastRefreshedAt = Date.now();
 
     if (this.client) {
@@ -80,6 +80,45 @@ export class CatalogSnapshotService {
 
     const durationMs = Date.now() - startTime;
     return { totalSynced: products.length, durationMs };
+  }
+
+  /** One page of the catalogue, ordered by name, plus the total product count. */
+  public async listProducts(
+    offset: number,
+    limit: number
+  ): Promise<{ products: StoreProduct[]; total: number }> {
+    if (this.client) {
+      try {
+        const { data, error, count } = await this.client
+          .from('catalog_products')
+          .select('id, slug, name, brand, category, sku, description', { count: 'exact' })
+          .order('name', { ascending: true })
+          .order('id', { ascending: true })
+          .range(offset, offset + limit - 1);
+
+        if (!error && data && count) {
+          return { products: data as StoreProduct[], total: count };
+        }
+        // PostgREST answers an offset past the end with 416; that is an empty page, not a failure.
+        if (error?.code === 'PGRST103') {
+          const { count: total } = await this.client
+            .from('catalog_products')
+            .select('id', { count: 'exact', head: true });
+          return { products: [], total: total ?? 0 };
+        }
+      } catch {
+        // Fall back to the in-memory snapshot
+      }
+    }
+
+    if (this.inMemoryCache.length === 0) {
+      await this.syncSnapshot();
+    }
+
+    return {
+      products: this.inMemoryCache.slice(offset, offset + limit),
+      total: this.inMemoryCache.length
+    };
   }
 
   public async searchProducts(
