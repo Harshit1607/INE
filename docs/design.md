@@ -80,7 +80,7 @@ cleanInvisibleChars(str: string): string {
 
 ### Price
 - Currency: `€`/`EUR` → `EUR`, `$`/`USD` → `USD`, `£`/`GBP` → `GBP`, otherwise `INR` (`₹`, `Rs.`, `INR`).
-- `1.234,56` style (comma decimal) is converted; otherwise commas are thousands separators.
+- Comma-decimal with dot grouping is converted, in Western (`1.234,56`) or Indian lakh grouping (`₹1.84.683,00`, the store's `euro` format for amounts ≥ ₹1 lakh); otherwise commas are thousands separators.
 - The first number found is the price; none → `NaN`, which the validator rejects as `invalid_price`.
 
 ### Stock

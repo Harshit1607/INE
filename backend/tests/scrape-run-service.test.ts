@@ -31,6 +31,13 @@ describe('PriceNormalizer & ReadingValidator', () => {
     expect(usd.currency).toBe('USD');
   });
 
+  it('parses the store\'s comma-decimal format when the rupee amount uses lakh grouping', () => {
+    // The store's `euro` format swaps en-IN separators: ₹1,84,683 renders as ₹1.84.683,00.
+    expect(PriceNormalizer.normalizePrice('₹1.84.683,00').price).toBe(184683);
+    expect(PriceNormalizer.normalizePrice('₹\u200B1\u200B1\u200B.\u200B1\u200B0\u200B.\u200B4\u200B5\u200B6\u200B,\u200B0\u200B0').price).toBe(1110456);
+    expect(PriceNormalizer.normalizePrice('₹57.437,00').price).toBe(57437);
+  });
+
   it('normalizes stock status and quantity', () => {
     expect(PriceNormalizer.normalizeStock('34 units available')).toEqual({
       status: 'in_stock',

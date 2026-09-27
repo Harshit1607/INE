@@ -49,8 +49,9 @@ export class PriceNormalizer {
       .replace(/\s+/g, '')
       .trim();
 
-    // Check if comma is used as decimal separator (e.g. 1.234,56 or 1234,00)
-    if (/^\d{1,3}(\.\d{3})*,\d{2}$/.test(numStr)) {
+    // Comma as decimal separator with dot grouping, in Western (1.234,56) or Indian lakh
+    // (1.84.683,00) grouping, or no grouping (1234,00)
+    if (/^\d+(\.\d{2,3})*,\d{2}$/.test(numStr)) {
       numStr = numStr.replace(/\./g, '').replace(',', '.');
     } else {
       // Standard comma as thousands separator (e.g. 12,345 or 12,345.67)
