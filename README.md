@@ -2,6 +2,11 @@
 
 A resilient, honest full-stack price and stock tracking system for INE's mock e-commerce store ([demo.inelabteamdev.com](https://demo.inelabteamdev.com)). Built with Node.js, TypeScript, Express, Playwright, React, Tailwind CSS, Supabase Postgres, and cron-job.org.
 
+- **Live dashboard:** https://ine-cy4qyry4v-harshit-barejas-projects.vercel.app/
+- **Backend API:** https://ine-613p.onrender.com (health: [`/api/health`](https://ine-613p.onrender.com/api/health), schedule health: [`/api/runs/health`](https://ine-613p.onrender.com/api/runs/health))
+- **Source:** https://github.com/Harshit1607/INE
+- **Design note** (reliability, trade-offs, AI corrections): [`DESIGN_NOTE.md`](DESIGN_NOTE.md)
+
 ---
 
 ## Architecture Overview
@@ -64,7 +69,7 @@ A resilient, honest full-stack price and stock tracking system for INE's mock e-
 
 ```bash
 # Clone repository
-git clone <repo-url>
+git clone https://github.com/Harshit1607/INE.git
 cd INE
 
 # Install Backend Dependencies
@@ -133,8 +138,8 @@ npm test
 ## Scraping Schedule Configuration
 
 Automated runs in production are orchestrated by [cron-job.org](https://cron-job.org):
-1. **Warm-Up Ping:** `GET https://<your-backend-render-url>/api/health` at `59 */2 * * *` (UTC) to warm Render's free-tier container.
-2. **Scrape Trigger:** `POST https://<your-backend-render-url>/api/cron/scrape` at `0 */2 * * *` (UTC) with header:
+1. **Warm-Up Ping:** `GET https://ine-613p.onrender.com/api/health` at `59 1-23/2 * * *` (UTC), one minute before each scrape, so Render's free-tier container is awake when the trigger arrives.
+2. **Scrape Trigger:** `POST https://ine-613p.onrender.com/api/cron/scrape` at `0 */2 * * *` (UTC, i.e. 00:00, 02:00, … 22:00) with header:
    ```
    x-cron-secret: <CRON_SECRET>
    ```
@@ -148,18 +153,23 @@ Automated runs in production are orchestrated by [cron-job.org](https://cron-job
 See [`docs/env-config.md`](docs/env-config.md) for full configuration details.
 
 ### Backend (`backend`)
-- `PORT`: Server port (default: `3001`, Render: `10000`)
-- `STORE_BASE_URL`: `https://demo.inelabteamdev.com`
-- `CRON_SECRET`: Secret token for cron endpoint authentication
-- `SUPABASE_URL`: Supabase project URL
-- `SUPABASE_SERVICE_ROLE_KEY`: Supabase service role key
-- `CORS_ORIGIN`: Allowed frontend origin (e.g. `https://your-app.vercel.app` or `*`)
-- `HEADLESS`: `true` for production headless runs
-- `SCRAPE_MAX_TRIES`: Maximum retries per attempt (default: `3`)
-- `SCRAPE_TRY_TIMEOUT_MS`: Timeout per try in milliseconds (default: `45000`)
+| Variable | Purpose | Default |
+|---|---|---|
+| `PORT` | Server port | `3001` (Docker image sets `10000`) |
+| `STORE_BASE_URL` | Mock store base URL | `https://demo.inelabteamdev.com` |
+| `CRON_SECRET` | Secret the cron trigger must send as `x-cron-secret` (or `Authorization: Bearer`) | `dev-secret-123`; **must** be set in production |
+| `SUPABASE_URL` | Supabase project URL | required |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (backend only) | required |
+| `CORS_ORIGIN` | Allowed frontend origin | `*` |
+| `HEADLESS` | `false` opens a visible browser | `true` |
+| `SLOW_MO_MS` | Delay in ms between browser actions, for watching headed runs | `0` |
+| `SCRAPE_MAX_TRIES` | Max tries per tracked product per run | `3` |
+| `SCRAPE_TRY_TIMEOUT_MS` | Timeout per try in ms | `45000` |
 
 ### Frontend (`frontend`)
-- `VITE_API_BASE_URL`: Render backend API URL (e.g. `https://your-backend.onrender.com`)
+| Variable | Purpose | Default |
+|---|---|---|
+| `VITE_API_BASE_URL` | Render backend URL | empty (uses the local dev proxy) |
 
 ---
 
