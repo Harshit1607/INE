@@ -246,7 +246,7 @@ export const App: React.FC = () => {
               Mock Store
             </a>
             <span>•</span>
-            <a href="/api/export.csv" className="hover:text-slate-200 transition">
+            <a href={api.getExportUrl()} className="hover:text-slate-200 transition">
               Download CSV
             </a>
           </div>

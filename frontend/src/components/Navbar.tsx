@@ -1,5 +1,6 @@
 import React from 'react';
 import { Activity, Download, Plus, RefreshCw } from 'lucide-react';
+import { api } from '../api.js';
 
 interface NavbarProps {
   onOpenSearch: () => void;
@@ -65,7 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Export CSV Button */}
           <a
-            href="/api/export.csv"
+            href={api.getExportUrl()}
             download="price-history.csv"
             className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-medium text-slate-200 hover:text-white hover:bg-slate-800 hover:border-slate-700 transition"
           >

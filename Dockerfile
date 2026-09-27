@@ -1,5 +1,5 @@
 # Base image with pre-installed Playwright Chromium and dependencies
-FROM mcr.microsoft.com/playwright:v1.50.1-noble
+FROM mcr.microsoft.com/playwright:v1.63.0-noble
 
 WORKDIR /app
 
