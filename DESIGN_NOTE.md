@@ -27,9 +27,10 @@ The INE mock store (`https://demo.inelabteamdev.com`) is deliberately constructe
 - The scraper explicitly waits for `aria-pressed="true"` / `.opt-chip-on` state confirmation before initiating the hover interaction. This prevents stale prices from previously active variants from leaking into the reading.
 
 ### D. Human-Like Pointer Trajectory & Dwell
-- The scraper computes the bounding box of the price panel, moves the cursor inside, and emits 12 continuous mouse steps with small delays.
-- A deliberate dwell of $750\text{ms}$ is applied (surpassing the store's $600\text{ms}$ threshold).
-- The action button (`.ctl-main` / `Check today’s price`) is verified enabled before clicking.
+- The scraper computes the bounding box of the price panel, moves the cursor inside, and emits 12 continuous mouse steps with small delays (the store samples moves $\ge 40\text{ms}$ apart and requires $\ge 8$).
+- A deliberate dwell of $750\text{ms}$ is applied (surpassing the store's $600\text{ms}$ threshold). If the button is still disabled afterwards, the gesture is repeated once.
+- The action button is located **inside the price panel** (`Check today’s price`); the consent banner's "Allow" button shares the `.ctl-main` class, so a page-wide selector can hit the wrong button.
+- The store's click handler silently **drops ~17.5% of trusted clicks** and delays another ~17.5% by 900 ms. The scraper clicks, waits up to 3 s for the panel to leave its idle state, and re-clicks (max 4) rather than waiting out a price that will never load. There is no untrusted `element.click()` fallback: the gate records `isTrusted` and rejects it.
 
 ### E. Value-Based Waiting vs. Fixed Sleep
 - Rather than using arbitrary `sleep()` calls, the reader observes the DOM using `page.waitForFunction()` until the target selector contains resolved numeric content (ignoring "Price locked", "Hold on", loaders, or placeholders).
@@ -98,8 +99,9 @@ During implementation, LLM assistance was utilized for boilerplate generation an
    - *Initial AI suggestion:* Inserting `await sleep(3000)` after hover and click.
    - *Correction:* Fixed sleeps cause flakiness under varying network loads. Replaced with `page.waitForFunction()` observing real DOM numeric settlement.
 4. **Cookie Consent Scrim Pointer Interception:**
-   - *Observed Issue:* Live mock store displays `<div class="consent-scrim">` cookie banner that intercepts mouse clicks during Try 1.
-   - *Correction:* Added proactive detection and automated dismissal of `.consent-scrim` buttons upon page load.
+   - *Initial AI suggestion:* Check for `.consent-scrim` once right after navigation and dismiss it.
+   - *Observed Issue:* On Render, 2 of 3 products failed with price timeouts that never happened locally. Reading the store bundle showed the banner mounts 1.5–5 s *after* app start (75% of loads) and needs 1–3 dismissals, so the one-shot check never saw it; on a slow CPU it landed mid-gesture and swallowed the click. Reproduced locally with Chrome CPU throttling (8×): 1/6 reads succeeded.
+   - *Correction:* A Playwright `addLocatorHandler` dismisses the banner (repeatedly) before any locator action, and the reader waits out the banner's arrival window before the raw-mouse gesture, since raw mouse moves bypass locator handlers. Combined with click re-tries and a 20 s price-resolution window, the throttled harness went to 8/9 on the first rework.
 5. **Chart Distortion on Failed Scrapes:**
    - *Initial AI suggestion:* Rendering `0` or interpolated values for failed attempts.
    - *Correction:* Graphing `0` creates false price collapse charts. Configured Recharts `connectNulls={false}` and set failed prices to `null` to render truthful gaps.

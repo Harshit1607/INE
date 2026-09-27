@@ -21,7 +21,7 @@ export interface ScrapeRunDependencies {
 
 export const DEFAULT_RETRY_POLICY: RetryPolicy = {
   maxTries: 3,
-  tryTimeoutMs: 25000,
+  tryTimeoutMs: 45000,
   initialBackoffMs: 1000,
   maxBackoffMs: 8000,
   jitterRatio: 0.2

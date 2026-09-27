@@ -94,7 +94,7 @@ async function main() {
     },
     {
       maxTries: 3,
-      tryTimeoutMs: 30000,
+      tryTimeoutMs: 45000,
       initialBackoffMs: 1000
     }
   );

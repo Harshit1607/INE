@@ -154,7 +154,7 @@ See [`docs/env-config.md`](docs/env-config.md) for full configuration details.
 - `CORS_ORIGIN`: Allowed frontend origin (e.g. `https://your-app.vercel.app` or `*`)
 - `HEADLESS`: `true` for production headless runs
 - `SCRAPE_MAX_TRIES`: Maximum retries per attempt (default: `3`)
-- `SCRAPE_TRY_TIMEOUT_MS`: Timeout per try in milliseconds (default: `25000`)
+- `SCRAPE_TRY_TIMEOUT_MS`: Timeout per try in milliseconds (default: `45000`)
 
 ### Frontend (`frontend`)
 - `VITE_API_BASE_URL`: Render backend API URL (e.g. `https://your-backend.onrender.com`)

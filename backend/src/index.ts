@@ -75,7 +75,7 @@ const scrapeRunService = new ScrapeRunService(
   },
   {
     maxTries: process.env.SCRAPE_MAX_TRIES ? parseInt(process.env.SCRAPE_MAX_TRIES, 10) : 3,
-    tryTimeoutMs: process.env.SCRAPE_TRY_TIMEOUT_MS ? parseInt(process.env.SCRAPE_TRY_TIMEOUT_MS, 10) : 25000
+    tryTimeoutMs: process.env.SCRAPE_TRY_TIMEOUT_MS ? parseInt(process.env.SCRAPE_TRY_TIMEOUT_MS, 10) : 45000
   }
 );
 

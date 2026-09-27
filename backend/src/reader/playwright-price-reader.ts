@@ -4,6 +4,21 @@ import { PriceReader, PriceReading, ScrapeError, UIManifest } from '../domain/ty
 import { PriceNormalizer } from './price-normalizer.js';
 import { ReadingValidator } from '../domain/validator.js';
 
+/** The consent banner mounts at most 5 s after app start; margin covers slow render. */
+const CONSENT_WINDOW_MS = 5500;
+/** Clicks before giving up; the store drops each click with ~17.5% probability. */
+const MAX_CHECK_CLICKS = 4;
+/** How long to wait for the panel to leave idle after a click (store may delay the handler 900 ms). */
+const CLICK_ACK_TIMEOUT_MS = 3000;
+/** The quote runs a client-side proof-of-work plus store-internal retries; slow on shared CPUs. */
+const PRICE_RESOLVE_TIMEOUT_MS = 20000;
+
+function sleep(ms: number): Promise<void> {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  setTimeout(resolve, ms);
+  return promise;
+}
+
 export interface PlaywrightPriceReaderOptions {
   baseUrl?: string;
   headless?: boolean;
@@ -28,7 +43,7 @@ export class PlaywrightPriceReader implements PriceReader {
     this.slowMo = options.slowMo ?? (process.env.SLOW_MO_MS ? parseInt(process.env.SLOW_MO_MS, 10) : 0);
     this.catalogClient = options.catalogClient || new CatalogClient({ baseUrl: this.baseUrl });
     this.logger = options.logger || (() => {});
-    this.pageTimeoutMs = options.pageTimeoutMs || (process.env.SCRAPE_TRY_TIMEOUT_MS ? parseInt(process.env.SCRAPE_TRY_TIMEOUT_MS, 10) : 25000);
+    this.pageTimeoutMs = options.pageTimeoutMs || (process.env.SCRAPE_TRY_TIMEOUT_MS ? parseInt(process.env.SCRAPE_TRY_TIMEOUT_MS, 10) : 45000);
   }
 
   private async getBrowser(): Promise<Browser> {
@@ -125,17 +140,16 @@ export class PlaywrightPriceReader implements PriceReader {
         throw new ScrapeError('navigation_failed', `Failed to navigate to ${productUrl}: ${msg}`, true);
       }
 
-      // Handle cookie consent dialog if displayed
-      try {
-        const consentBtn = page.locator('.consent-scrim button, button[aria-label="Allow cookies"]').first();
-        if (await consentBtn.isVisible({ timeout: 1200 })) {
+      // The store's cookie-consent scrim mounts 1.5–5 s after app start (on ~75% of loads), swallows
+      // pointer events, and needs 1–3 dismissals before it unmounts. Auto-dismiss it before any
+      // locator action, whenever it appears.
+      const consentScrim = page.locator('.consent-scrim');
+      await page.addLocatorHandler(consentScrim, async (scrim) => {
+        for (let i = 0; i < 5 && (await scrim.isVisible()); i++) {
           this.logger(`[PriceReader] Dismissing cookie consent banner...`);
-          await consentBtn.click();
-          await page.locator('.consent-scrim').waitFor({ state: 'detached', timeout: 2000 }).catch(() => {});
+          await scrim.locator('button[aria-label="Reject cookies"]').click({ timeout: 3000 }).catch(() => {});
         }
-      } catch {
-        // Ignored if not found
-      }
+      });
 
       // 4. Select Option and confirm it
       this.logger(`[PriceReader] Locating option chip for '${optionId}'...`);
@@ -145,6 +159,7 @@ export class PlaywrightPriceReader implements PriceReader {
       } catch {
         throw new ScrapeError('structure_changed', `Option picker container not found on page`, false);
       }
+      const appRenderedAt = Date.now();
 
       const itemDetail = await this.catalogClient.fetchItem(storeProductId);
       const targetOption = itemDetail.options.find((o) => o.id === optionId);
@@ -186,57 +201,68 @@ export class PlaywrightPriceReader implements PriceReader {
         throw new ScrapeError('structure_changed', `Price panel (.${priceWrapClass}) not found on page`, false);
       }
 
-      const box = await panelLocator.boundingBox();
-      if (!box) {
-        throw new ScrapeError('structure_changed', `Unable to get bounding box for price panel`, false);
+      // Raw mouse moves bypass locator handlers, so wait out the consent banner's arrival window
+      // (measured from first render, which is after app start) and clear it before the gesture.
+      const consentWindowLeft = appRenderedAt + CONSENT_WINDOW_MS - Date.now();
+      if (consentWindowLeft > 0) {
+        await consentScrim.waitFor({ state: 'visible', timeout: consentWindowLeft }).catch(() => {});
+      }
+      if (await consentScrim.isVisible()) {
+        await panelLocator.hover(); // runs the consent handler
       }
 
-      this.logger(`[PriceReader] Simulating human pointer movements and dwell on price area...`);
-      const startX = box.x + 10;
-      const startY = box.y + 10;
-      await page.mouse.move(startX, startY);
+      // The action button lives inside the panel; the consent "Allow" button also uses .ctl-main.
+      const checkBtn = panelLocator.locator('button[aria-label="Check today’s price"], .ctl-main').first();
 
-      // Perform >= 10 realistic pointer moves across the box
-      const moveSteps = 12;
-      for (let i = 1; i <= moveSteps; i++) {
-        const x = box.x + 15 + ((box.width - 30) * i) / moveSteps;
-        const y = box.y + 15 + (Math.sin(i) * 10);
-        await page.mouse.move(x, y, { steps: 2 });
-        const { promise, resolve } = Promise.withResolvers<void>();
-        setTimeout(resolve, 60);
-        await promise;
+      // Gate: >= 8 pointer moves sampled >= 40 ms apart, then >= 600 ms dwell, before the button enables.
+      for (let gesture = 1; gesture <= 2; gesture++) {
+        const box = await panelLocator.boundingBox();
+        if (!box) {
+          throw new ScrapeError('structure_changed', `Unable to get bounding box for price panel`, false);
+        }
+
+        this.logger(`[PriceReader] Simulating human pointer movements and dwell on price area...`);
+        await page.mouse.move(box.x + 10, box.y + 10);
+        const moveSteps = 12;
+        for (let i = 1; i <= moveSteps; i++) {
+          const x = box.x + 15 + ((box.width - 30) * i) / moveSteps;
+          const y = box.y + 15 + (Math.sin(i) * 10);
+          await page.mouse.move(x, y, { steps: 2 });
+          await sleep(60);
+        }
+
+        this.logger(`[PriceReader] Dwelling over price area (750ms)...`);
+        await sleep(750);
+
+        if (await checkBtn.isEnabled().catch(() => false)) break;
+        this.logger(`[PriceReader] Price gate not satisfied yet; repeating gesture...`);
+        if (await consentScrim.isVisible()) await panelLocator.hover();
       }
 
-      // Dwell for 750ms to satisfy minDwellMs (600ms)
-      this.logger(`[PriceReader] Dwelling over price area (750ms)...`);
-      const { promise: dwellPromise, resolve: resolveDwell } = Promise.withResolvers<void>();
-      setTimeout(resolveDwell, 750);
-      await dwellPromise;
-
-      // 6. Click the action button to request price
-      const checkBtn = page.locator('.ctl-main, button[aria-label="Check today’s price"]').first();
-      try {
-        await checkBtn.waitFor({ state: 'visible', timeout: 6000 });
-        await page.waitForFunction(
-          () => {
-            const btn = document.querySelector('.ctl-main, button[aria-label="Check today’s price"]');
-            return Boolean(btn && !btn.hasAttribute('disabled'));
-          },
-          { timeout: 6000 }
-        );
-      } catch {
-        this.logger(`[PriceReader] Button not enabled yet; proceeding with click attempt`);
+      // 6. Trusted click. The store silently drops ~17.5% of clicks and delays another ~17.5% by
+      // 900 ms, so re-click until the panel leaves its idle state. An untrusted DOM click never
+      // unlocks the gate, so there is no JS-click fallback.
+      let quoteStarted = false;
+      for (let click = 1; click <= MAX_CHECK_CLICKS && !quoteStarted; click++) {
+        if ((await checkBtn.count()) === 0) {
+          quoteStarted = true;
+          break;
+        }
+        this.logger(`[PriceReader] Clicking 'Check today’s price' button (click ${click}/${MAX_CHECK_CLICKS})...`);
+        try {
+          await checkBtn.click({ timeout: 8000 });
+        } catch (err: unknown) {
+          throw new ScrapeError('timeout', `Price check button not clickable: ${err instanceof Error ? err.message : String(err)}`, true);
+        }
+        quoteStarted = await checkBtn
+          .waitFor({ state: 'detached', timeout: CLICK_ACK_TIMEOUT_MS })
+          .then(() => true, () => false);
+        if (!quoteStarted) {
+          this.logger(`[PriceReader] Store ignored the click; clicking again...`);
+        }
       }
-
-      this.logger(`[PriceReader] Clicking 'Check today’s price' button...`);
-      try {
-        await checkBtn.click({ timeout: 4000 });
-      } catch {
-        // Fallback: click directly or dispatch click event
-        await page.evaluate(() => {
-          const btn = document.querySelector('.ctl-main, button[aria-label="Check today’s price"]') as HTMLElement | null;
-          btn?.click();
-        });
+      if (!quoteStarted) {
+        throw new ScrapeError('timeout', `Store ignored ${MAX_CHECK_CLICKS} price-check clicks`, true);
       }
 
       // 7. Wait for real value
@@ -244,20 +270,25 @@ export class PlaywrightPriceReader implements PriceReader {
       const priceTag = manifest.priceTag || 'strong, span';
       const priceSelector = priceValueClass ? `.${priceValueClass}` : `${priceTag}`;
 
-      await page.waitForFunction(
-        ([sel]) => {
-          const el = document.querySelector(sel);
-          if (!el) return false;
-          const text = el.textContent?.trim() || '';
-          if (!text) return false;
-          if (text.includes('Price locked') || text.includes('Hold on') || text.includes('Loading')) {
-            return false;
-          }
-          return /\d/.test(text);
-        },
-        [priceSelector],
-        { timeout: 12000 }
-      );
+      try {
+        await page.waitForFunction(
+          ([sel]) => {
+            const el = document.querySelector(sel);
+            if (!el) return false;
+            const text = el.textContent?.trim() || '';
+            if (!text) return false;
+            if (text.includes('Price locked') || text.includes('Hold on') || text.includes('Loading')) {
+              return false;
+            }
+            return /\d/.test(text);
+          },
+          [priceSelector],
+          { timeout: PRICE_RESOLVE_TIMEOUT_MS }
+        );
+      } catch {
+        const panelText = (await panelLocator.innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160);
+        throw new ScrapeError('timeout', `Price did not resolve within ${PRICE_RESOLVE_TIMEOUT_MS}ms; panel showed: "${panelText}"`, true);
+      }
 
       // 8. Extract price text and stock text
       const rawPriceText = await page.locator(priceSelector).first().innerText();

@@ -13,7 +13,7 @@
 | `HEADLESS` | Run Playwright in headless mode | `true` (prod/CLI) or `false` (headed mode) |
 | `SLOW_MO_MS` | Slow-motion delay in ms for visible browser runs | `0` (prod) / `250` (headed debug/recording) |
 | `SCRAPE_MAX_TRIES` | Max tries per tracked product per scrape run | `3` |
-| `SCRAPE_TRY_TIMEOUT_MS` | Timeout per try before timeout error | `25000` |
+| `SCRAPE_TRY_TIMEOUT_MS` | Timeout per try before timeout error | `45000` |
 
 ---
 
