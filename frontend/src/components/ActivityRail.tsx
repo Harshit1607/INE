@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { Download, ExternalLink } from 'lucide-react';
 import { TrackedProductOverview } from '../types.js';
-import { api } from '../api.js';
 import { categoryIcon } from '../categoryIcon.js';
 import { formatAgo, formatCurrency } from '../format.js';
+import { panel, panelHeader, panelTitle } from '../ui.js';
 
 interface ActivityRailProps {
   products: TrackedProductOverview[];
@@ -29,7 +28,7 @@ export const ActivityRail: React.FC<ActivityRailProps> = ({ products, loading, o
       role="tab"
       aria-selected={filter === value}
       onClick={() => setFilter(value)}
-      className={`flex-1 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+      className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
         filter === value ? 'bg-ink text-white' : 'text-ink-2 hover:text-ink'
       }`}
     >
@@ -38,10 +37,18 @@ export const ActivityRail: React.FC<ActivityRailProps> = ({ products, loading, o
   );
 
   return (
-    <aside className="flex flex-col gap-6 rounded-panel bg-tile p-5 xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
-      <div>
-        <h2 className="text-lg font-bold text-ink">Latest readings</h2>
-        <div role="tablist" aria-label="Filter readings" className="mt-4 flex gap-1 rounded-2xl bg-white p-1">
+    <aside
+      aria-labelledby="readings-heading"
+      className={`${panel} flex flex-col xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto`}
+    >
+      <div className={panelHeader}>
+        <h2 id="readings-heading" className={panelTitle}>
+          Latest readings
+        </h2>
+        <span className="tnum text-xs font-medium text-ink-3">{readings.length}</span>
+      </div>
+      <div className="px-5 pb-3 pt-4">
+        <div role="tablist" aria-label="Filter readings" className="flex gap-1 rounded-xl bg-tile p-1">
           {tab('all', 'All')}
           {tab('issues', 'Retried & failed')}
         </div>
@@ -49,7 +56,7 @@ export const ActivityRail: React.FC<ActivityRailProps> = ({ products, loading, o
         {loading ? (
           <ul className="mt-4 space-y-3" aria-hidden="true">
             {[1, 2, 3, 4].map((i) => (
-              <li key={i} className="h-12 animate-pulse rounded-2xl bg-tile-2" />
+              <li key={i} className="h-12 animate-pulse rounded-xl bg-tile" />
             ))}
           </ul>
         ) : readings.length === 0 ? (
@@ -57,7 +64,7 @@ export const ActivityRail: React.FC<ActivityRailProps> = ({ products, loading, o
             {filter === 'issues' ? 'Every latest reading succeeded on the first try.' : 'No readings recorded yet.'}
           </p>
         ) : (
-          <ul className="mt-3 divide-y divide-line">
+          <ul className="mt-2 divide-y divide-neutral-200">
             {readings.map((p) => {
               const r = p.latestReading!;
               const Icon = categoryIcon(p.category);
@@ -66,12 +73,12 @@ export const ActivityRail: React.FC<ActivityRailProps> = ({ products, loading, o
                   <button
                     type="button"
                     onClick={() => onSelect(p)}
-                    className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-2xl px-2 py-3 text-left transition-colors hover:bg-white"
+                    className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-tile"
                   >
-                    <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-ink">
+                    <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-ink">
                       <Icon className="h-[18px] w-[18px]" />
                       <span
-                        className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-tile ${OUTCOME_DOT[r.outcome]}`}
+                        className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-white ${OUTCOME_DOT[r.outcome]}`}
                         aria-hidden="true"
                       />
                     </span>
@@ -94,31 +101,6 @@ export const ActivityRail: React.FC<ActivityRailProps> = ({ products, loading, o
             })}
           </ul>
         )}
-      </div>
-
-      <div className="mt-auto border-t border-line pt-5">
-        <h2 className="text-sm font-bold text-ink">How readings are taken</h2>
-        <p className="mt-1.5 text-sm leading-relaxed text-ink-2">
-          Playwright opens each variant in a real browser, performs the interaction the store requires, and
-          records one attempt per run. Failures stay in the history as failures.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold text-ink">
-          <a
-            href={api.getExportUrl()}
-            download="price-history.csv"
-            className="inline-flex items-center gap-1.5 underline decoration-neutral-300 underline-offset-4 hover:decoration-ink"
-          >
-            <Download className="h-4 w-4" /> Export CSV
-          </a>
-          <a
-            href="https://demo.inelabteamdev.com"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 underline decoration-neutral-300 underline-offset-4 hover:decoration-ink"
-          >
-            <ExternalLink className="h-4 w-4" /> Mock store
-          </a>
-        </div>
       </div>
     </aside>
   );

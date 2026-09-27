@@ -7,6 +7,10 @@ import {
 } from './types.js';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const STORE_BASE = 'https://demo.inelabteamdev.com';
+
+/** Product page on INE's mock store; the same URL the scraper reads. */
+export const storeProductUrl = (storeProductId: number): string => `${STORE_BASE}/item/${storeProductId}`;
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {

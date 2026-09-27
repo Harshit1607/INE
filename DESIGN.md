@@ -10,7 +10,6 @@ colors:
   surface: "#FFFFFF"
   tile: "#F4F4F4"
   tile-deep: "#EAEAEA"
-  canvas: "#EBEBEB"
   line: "#E4E4E4"
   ok: "#12784F"
   ok-wash: "#E6F6EF"
@@ -19,18 +18,12 @@ colors:
   bad: "#C8313F"
   bad-wash: "#FCEBEC"
 typography:
-  display:
+  headline:
     fontFamily: "Urbanist Variable, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "clamp(1.75rem, 3.2vw, 2.5rem)"
+    fontSize: "1.5rem"
     fontWeight: 700
     lineHeight: 1.25
     letterSpacing: "-0.02em"
-  headline:
-    fontFamily: "Urbanist Variable, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "clamp(1.75rem, 2.6vw, 2.25rem)"
-    fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: "-0.025em"
   figure:
     fontFamily: "Urbanist Variable, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.875rem"
@@ -40,7 +33,7 @@ typography:
     fontFeature: "tnum"
   title:
     fontFamily: "Urbanist Variable, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "1.125rem"
+    fontSize: "1rem"
     fontWeight: 700
     lineHeight: 1.4
   body:
@@ -58,7 +51,6 @@ rounded:
   control: "16px"
   panel: "22px"
   sheet: "28px"
-  frame: "32px"
 spacing:
   gap: "20px"
   section: "32px"
@@ -71,25 +63,15 @@ components:
     padding: "10px 16px"
   button-primary-hover:
     backgroundColor: "{colors.ink-hover}"
-  panel-hero:
-    backgroundColor: "{colors.tile}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.panel}"
-  panel-accent:
-    backgroundColor: "{colors.ink}"
-    textColor: "{colors.surface}"
-    rounded: "{rounded.panel}"
-    padding: "20px"
-  card:
-    backgroundColor: "{colors.tile}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.panel}"
-    padding: "48px 20px 20px"
-  medallion:
+  panel:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.control}"
-    size: "56px"
+    rounded: "16px"
+  icon-chip:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    rounded: "8px"
+    size: "36px"
   segmented-active:
     backgroundColor: "{colors.ink}"
     textColor: "{colors.surface}"
@@ -107,14 +89,14 @@ components:
 
 **Creative North Star: "The Ink Ledger"**
 
-A white app frame on a pale gray canvas. The sidebar is pure black, content sits on soft gray tiles, and every action is a black pill. Black, white and gray carry the whole identity, so the only colour on screen is data: green, amber and red outcomes, and the red overdue zone. Colour therefore always means something happened.
+A full-bleed white page with no window frame. The sidebar is pure black, content sits on soft gray tiles, and every action is a black pill. Black, white and gray carry the whole identity, so the only colour on screen is data: green, amber and red outcomes, and the red overdue zone. Colour therefore always means something happened.
 
-The mood is calm, editorial and confident: big black numerals, bold titles, generous tiles. Depth is almost flat. Tiles are distinguished by tone, not shadow, and only white medallions and lifted cards cast a soft shadow.
+The mood is calm and operational: a KPI strip, a chart, a schedule panel and dense tables, all in white bordered panels with big black numerals and tabular figures. Depth is flat; panels separate by a 1px neutral border, never by shadow.
 
 **Key Characteristics:**
 - Black, white and grays only; colour is reserved for status.
-- Black sidebar, black primary buttons, one black accent block per cluster.
-- Gray tiles on a white frame, with white medallions and chips on the tiles.
+- Black sidebar and black primary buttons.
+- White bordered panels on a full-bleed white page; gray only for table headers, hover and chips.
 - Big bold figures in Urbanist with tabular numerals.
 - One authored motion moment on load.
 
@@ -123,21 +105,18 @@ The mood is calm, editorial and confident: big black numerals, bold titles, gene
 Strict monochrome plus a status triad.
 
 ### Primary
-- **Ink** (ink): sidebar, primary buttons, active segmented tab, the raised middle stat cell, the "Read in last run" block, the modal header band, the chart line, and the cadence fill and marker.
+- **Ink** (ink): sidebar, primary buttons, active segmented tab, bars at ≥90% success, the modal header band, the price chart line, and the cadence fill and marker.
 - **Ink Hover** (ink-hover): hover state for black buttons.
 - **Soft Ink** (ink-soft): secondary text on black (7.9:1).
 
 ### Neutral
-- **Surface** (surface): app frame, modal sheets, medallions, chips on tiles.
-- **Tile** (tile): cards, hero panel, rail, fields. **Tile Deep** (tile-deep): the stat band and tile hover.
-- **Canvas** (canvas): page background outside the frame.
+- **Surface** (surface): page background, panels, modal sheets, icon chips.
+- **Tile** (tile): table header rows, row hover, KPI icon chips, segmented track. **Tile Deep** (tile-deep): pressed/hover on tile.
 - **Muted Ink / Faint Ink** (ink-muted, ink-faint): secondary and tertiary text; faint ink stays ≥4.5:1 on tile.
 - **Hairline** (line): dividers.
 
 ### Named Rules
 **The Colour Is Data Rule.** Only ok, warn and bad (with their washes) may add hue. Never introduce a brand colour.
-
-**The One Black Block Rule.** Within a cluster, one black block anchors it (the raised stat cell, the last-run card). Everything else stays gray or white.
 
 ## Typography
 
@@ -147,10 +126,9 @@ Strict monochrome plus a status triad.
 **Character:** A rounded geometric sans that is friendly at bold display weights and still crisp at 12 px.
 
 ### Hierarchy
-- **Display** (700, clamp 1.75–2.5rem, -0.02em): the hero schedule headline ("Next run in 1h 22m").
-- **Headline** (700, clamp 1.75–2.25rem, -0.025em): the page title.
-- **Figure** (700, 1.875rem, tnum): prices and stat values.
-- **Title** (700, 1.125rem): card titles and section headings (section headings use 1.25rem).
+- **Headline** (700, 1.5rem, -0.02em): the page title and the schedule headline ("Next run in 1h 22m").
+- **Figure** (700, 1.875rem, tnum): KPI values.
+- **Title** (700, 1rem): panel titles.
 - **Body** (500, 0.875rem): descriptions, capped at 60–65ch.
 - **Label** (600, 0.75rem): stat labels, pills, axis labels. Always sentence case, never uppercase.
 
@@ -161,20 +139,19 @@ Strict monochrome plus a status triad.
 
 ## Layout
 
-At lg and up, the frame (max 1640px, 24px inset, 32px radius) holds three columns: the 76px black sidebar, the main column, and a 320px rail at xl for Latest readings. Below lg, the rail becomes a horizontal black bar at the top. Below xl, the readings rail stacks after the content. The hero splits 1.75fr / 1fr at xl. Variant cards auto-fill at a 260px minimum, with a 20px column gap and a 24px row gap (plus the 28px medallion overhang). Sections are separated by 32px, and panels are 20px apart.
+The dashboard fills the viewport edge to edge on a white page, with 24px padding at lg (12–20px below). Main column order: header row (title, search) → KPI strip → success-rate chart beside the schedule panel → tracked-variants table → catalogue table. Panels are 20px apart. At lg and up it holds three columns: the 76px black sidebar, the main column, and a 320px rail at xl for Latest readings. Below lg, the rail becomes a horizontal black bar at the top. Below xl, the readings rail stacks after the content.
 
 ## Elevation & Depth
 
-Nearly flat: tiles separate from the white frame by tone alone. Shadows appear only on white medallions, hovered cards, the tooltip and the frame, and every shadow has an offset.
+Flat: panels are separated by a 1px neutral-200 border. Shadows appear only on the sidebar, tooltips and modal sheets, and every shadow has an offset.
 
 ### Shadow Vocabulary
-- **Card** (`0 1px 2px rgba(10,10,10,.04), 0 6px 18px -8px rgba(10,10,10,.12)`): white medallions and icon chips on tiles.
-- **Lift** (`0 2px 4px rgba(10,10,10,.05), 0 18px 36px -14px rgba(10,10,10,.22)`): hovered cards (which also turn white), the sidebar, bubbles.
-- **Frame** (`0 30px 80px -30px rgba(10,10,10,.25)`): the app frame and modal sheets.
+- **Lift** (`0 2px 4px rgba(10,10,10,.05), 0 18px 36px -14px rgba(10,10,10,.22)`): the sidebar, bubbles, tooltips.
+- **Frame** (`0 30px 80px -30px rgba(10,10,10,.25)`): modal sheets.
 
 ## Shapes
 
-Generously rounded. Panels and cards use 22px, controls and medallions 16px, sheets 28px, and the frame 32px. Pills are reserved for chips and status. Only the cadence track uses geometric linework.
+Softly rounded: panels 16px, controls 12px, icon chips 8px, sidebar 22px, sheets 28px. The page itself is never framed or rounded. Pills are reserved for chips and status. Only the cadence track uses geometric linework.
 
 ## Components
 
@@ -190,7 +167,10 @@ Generously rounded. Panels and cards use 22px, controls and medallions 16px, she
 - **Tracked badge:** black pill with white text.
 
 ### Cards / Containers
-- **Variant card:** tile, 22px radius, no shadow at rest. On hover it turns white, lifts 2px and gains the Lift shadow. A 56px white medallion with a black icon overlaps the top edge by 28px. Below come the price figure, a 6px success-rate bar (ink at ≥90%, warn at ≥60%, bad below that, on a black/10 track), and the stock pill.
+- **Panel:** white, 1px neutral-200 (#E5E5E5) border, 16px radius, no shadow. A header row (title + one-line caption left, actions right) sits above a neutral-200 divider. Shared as `panel` / `panelHeader` in `frontend/src/ui.ts`.
+- **KPI tile:** panel with label and a tile-gray icon chip on top, a 30px figure, and one caption line. Four across at xl, two below.
+- **Variant card:** a panel (p-16px) that turns its border ink on hover: tile icon chip + name + brand · category, a variant chip, a 24px price beside the outcome pill, a success-rate bar, and a footer (scrapes · last read, stock pill) above a divider. Auto-fills at a 250px minimum with 16px gaps.
+- **Data tables:** tile-gray header row with 12px semibold faint-ink labels, neutral-200 row dividers, tile hover, tabular numerals. Tables scroll horizontally on small screens instead of reflowing.
 
 ### Inputs / Fields
 - **Search:** tile, 16px radius, leading search icon. On focus it shows a 2px ink ring with an ink caret; the clear button is forced to black.
@@ -199,13 +179,14 @@ Generously rounded. Panels and cards use 22px, controls and medallions 16px, she
 - **Segmented control:** a white track (or tile inside white sheets) with a 4px inset. The active tab is Ink.
 
 ### Cadence Track (signature)
-A 0–3 h rail on the gray hero, drawn on a black/10 track. Ticks mark due at 2h and overdue at 2.5h, with their labels 12px below. The overdue zone is bad-dot at 25%. The fill and marker are ink, and turn bad-dot when the run is overdue. A black bubble above the marker reads the time since the last run. The fill and marker travel in from zero over 900ms with an expo-out curve, and reduced motion disables this.
+A 0–3 h rail inside the Scrape schedule panel, drawn on a black/10 track. Ticks mark 2h (due) and 2.5h (overdue), with short numeric labels below. The overdue zone is bad-dot at 25%. The fill and marker are ink, and turn bad-dot when the run is overdue. A black bubble above the marker reads the time since the last run. The fill and marker travel in from zero over 900ms with an expo-out curve, and reduced motion disables this.
 
 ## Do's and Don'ts
 
 ### Do:
 - **Do** show failures as failures: gaps plus red dashed markers in charts, and error codes in logs.
 - **Do** keep secondary text on black at Soft Ink or white.
+- **Do** put every dashboard block in a `panel` with a header row; show tracked variants as a card grid and reference data (catalogue, logs) as tables.
 - **Do** keep motion to the single load moment plus sheet and scrim entrances.
 
 ### Don't:

@@ -22,10 +22,6 @@
         "role": "neutral",
         "displayName": "Tile Gray"
       },
-      "canvas": {
-        "role": "neutral",
-        "displayName": "Canvas Gray"
-      },
       "surface": {
         "role": "neutral",
         "displayName": "Paper White"
@@ -43,11 +39,6 @@
     },
     "shadows": [
       {
-        "name": "card",
-        "value": "0 1px 2px rgba(10,10,10,0.04), 0 6px 18px -8px rgba(10,10,10,0.12)",
-        "purpose": "White medallions and chips on tiles."
-      },
-      {
         "name": "lift",
         "value": "0 2px 4px rgba(10,10,10,0.05), 0 18px 36px -14px rgba(10,10,10,0.22)",
         "purpose": "Hovered cards, sidebar, bubbles."
@@ -55,7 +46,7 @@
       {
         "name": "frame",
         "value": "0 30px 80px -30px rgba(10,10,10,0.25)",
-        "purpose": "App frame and sheets."
+        "purpose": "Modal sheets."
       }
     ],
     "motion": [
@@ -113,21 +104,21 @@
       "css": ".ds-seg{display:flex;gap:4px;padding:4px;background:#fff;border-radius:16px}.ds-seg button{flex:1;border:none;background:none;border-radius:12px;padding:8px 12px;font:600 14px 'Urbanist Variable',sans-serif;color:#4A4A4A;cursor:pointer}.ds-seg button:hover{color:#0A0A0A}.ds-seg button.on{background:#0A0A0A;color:#fff;box-shadow:none}"
     },
     {
-      "name": "Variant Card",
+      "name": "Panel with table",
       "kind": "card",
-      "refersTo": "card",
-      "description": "Tracked variant with overlapping medallion.",
-      "html": "<div class=\"ds-card\"><span class=\"ds-med\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#0A0A0A\" stroke-width=\"2\"><path d=\"M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z\"/></svg></span><b>Saffrix Smart Panel Ultra</b><small>Saffrix · Lighting</small><strong>₹16,044</strong><div class=\"ds-bar\"><i style=\"width:100%\"></i></div></div>",
-      "css": ".ds-card{position:relative;margin-top:28px;display:flex;flex-direction:column;gap:4px;background:#F4F4F4;border-radius:22px;padding:48px 20px 20px;box-shadow:0 1px 2px rgba(10,10,10,.04),0 8px 24px -8px rgba(10,10,10,.10);font-family:'Urbanist Variable',sans-serif;color:#0A0A0A;transition:transform .2s,box-shadow .2s}.ds-card:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(10,10,10,.05),0 18px 36px -12px rgba(10,10,10,.18)}.ds-med{position:absolute;top:-28px;left:20px;width:56px;height:56px;border-radius:16px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(10,10,10,.04),0 6px 18px -8px rgba(10,10,10,.12)}.ds-card b{font-size:18px}.ds-card small{color:#6B6B6B;font-size:14px}.ds-card strong{font-size:30px;font-variant-numeric:tabular-nums;margin-top:12px}.ds-bar{height:6px;border-radius:9px;background:rgba(0,0,0,.1);margin-top:16px;overflow:hidden}.ds-bar i{display:block;height:100%;background:#FFFFFF;border-radius:9px}"
+      "refersTo": "panel",
+      "description": "Standard dashboard block: header row over a data table.",
+      "html": "<section class=\"ds-panel\"><header><div><b>Tracked variants</b><small>Select a row for its price chart</small></div><button>+ Track a variant</button></header><table><thead><tr><th>Product</th><th>Price</th><th>Success</th></tr></thead><tbody><tr><td>Saffrix Smart Panel Ultra</td><td>₹16,044</td><td>100%</td></tr><tr><td>Veloria Console Zen</td><td>₹24,999</td><td>92%</td></tr></tbody></table></section>",
+      "css": ".ds-panel{border:1px solid #E5E5E5;border-radius:16px;background:#fff;font-family:'Urbanist Variable',sans-serif;color:#0A0A0A;overflow:hidden}.ds-panel header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #E5E5E5}.ds-panel header b{display:block;font-size:16px}.ds-panel header small{font-size:12px;color:#6B6B6B}.ds-panel header button{background:#0A0A0A;color:#fff;border:none;border-radius:12px;padding:8px 14px;font:600 14px inherit;cursor:pointer}.ds-panel header button:hover{background:#262626}.ds-panel table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}.ds-panel th{background:#F4F4F4;text-align:left;font-size:12px;color:#6B6B6B;padding:10px 20px}.ds-panel td{padding:12px 20px;border-top:1px solid #E5E5E5}.ds-panel tr:hover td{background:#F4F4F4}"
     }
   ],
   "narrative": {
     "northStar": "The Ink Ledger",
-    "overview": "A white app frame on a pale gray canvas. The sidebar is pure black, content sits on soft gray tiles, and every action is a black pill. Black, white and gray carry the whole identity, so the only colour on screen is data: green, amber and red outcomes, and the red overdue zone. Colour therefore always means something happened.\n\nThe mood is calm, editorial and confident: big black numerals, bold titles, generous tiles. Depth is almost flat. Tiles are distinguished by tone, not shadow, and only white medallions and lifted cards cast a soft shadow.",
+    "overview": "A full-bleed white page with no window frame. The sidebar is pure black, content sits on soft gray tiles, and every action is a black pill. Black, white and gray carry the whole identity, so the only colour on screen is data: green, amber and red outcomes, and the red overdue zone. Colour therefore always means something happened.\n\nThe mood is calm and operational: a KPI strip, a chart, a schedule panel and dense tables, all in white bordered panels with big black numerals and tabular figures. Depth is flat; panels separate by a 1px neutral border, never by shadow.",
     "keyCharacteristics": [
       "Black, white and grays only; colour is reserved for status.",
-      "Black sidebar, black primary buttons, one black accent block per cluster.",
-      "Gray tiles on a white frame, with white medallions and chips on the tiles.",
+      "Black sidebar and black primary buttons.",
+      "White bordered panels on a full-bleed white page; gray only for table headers, hover and chips.",
       "Big bold figures in Urbanist with tabular numerals.",
       "One authored motion moment on load."
     ],
@@ -135,11 +126,6 @@
       {
         "name": "The Colour Is Data Rule",
         "body": "Only ok, warn and bad (with their washes) may add hue. Never introduce a brand colour.",
-        "section": "colors"
-      },
-      {
-        "name": "The One Black Block Rule",
-        "body": "Within a cluster, one black block anchors it (the raised stat cell, the last-run card). Everything else stays gray or white.",
         "section": "colors"
       },
       {
@@ -156,6 +142,7 @@
     "dos": [
       "Do show failures as failures: gaps plus red dashed markers in charts, and error codes in logs.",
       "Do keep secondary text on black at Soft Ink or white.",
+      "Do put every dashboard block in a `panel` with a header row; show tracked variants as a card grid and reference data (catalogue, logs) as tables.",
       "Do keep motion to the single load moment plus sheet and scrim entrances."
     ],
     "donts": [

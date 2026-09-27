@@ -31,7 +31,7 @@ Honest history: failed scrapes are recorded and shown as failures (gaps in chart
 
 ## Brand Commitments
 - Name: INE Price Tracker.
-- Colour theme chosen by the user: monochrome black, white and light gray (black sidebar and primary buttons, gray tiles on a white frame, from their "F." learning dashboard reference). Layout keeps the rounded frame, overlapping icon medallions and hero panel from the earlier "dosage" reference.
+- Colour theme chosen by the user: monochrome black, white and light gray (black sidebar and primary buttons, gray tiles on a full-bleed white page, from their "F." learning dashboard reference). Layout keeps the overlapping icon medallions and hero panel from the earlier "dosage" reference.
 
 ## Evidence on Hand
 Only live data from the backend API. No testimonials, users, or metrics beyond what the API returns; never invent them.

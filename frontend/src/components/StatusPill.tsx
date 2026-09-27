@@ -25,8 +25,8 @@ export const StockPill: React.FC<{ status: string | null; qty: number | null }> 
       : status === 'low_stock'
       ? 'bg-warn-50 text-warn'
       : status
-      ? 'bg-white text-ink'
-      : 'bg-white text-ink-2';
+      ? 'border border-neutral-200 bg-white text-ink'
+      : 'bg-tile text-ink-2';
   return (
     <span className={`tnum inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>
       {stockLabel(status, qty)}

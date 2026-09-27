@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ExternalLink, Loader2, Trash2, X } from 'lucide-react';
+import { Loader2, Trash2, X } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -252,14 +252,6 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   <span className="rounded-full bg-white/15 px-3 py-1 font-semibold">
                     {product.optionAxis} · {product.optionLabel}
                   </span>
-                  <a
-                    href={`https://demo.inelabteamdev.com/item/${product.storeProductId}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 font-semibold text-white underline decoration-white/40 underline-offset-4 hover:decoration-white"
-                  >
-                    View on mock store <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
                 </div>
               </div>
             </div>
