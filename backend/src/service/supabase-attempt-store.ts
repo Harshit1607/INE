@@ -191,10 +191,10 @@ export class SupabaseAttemptStore implements AttemptStore {
     return (data || []).map((a) => this.mapDbAttempt(a));
   }
 
-  public async getLatestRun(): Promise<ScrapeRun | null> {
-    const { data, error } = await this.client
-      .from('scrape_runs')
-      .select('*')
+  public async getLatestRun(trigger?: ScrapeRun['trigger']): Promise<ScrapeRun | null> {
+    let query = this.client.from('scrape_runs').select('*');
+    if (trigger) query = query.eq('trigger', trigger);
+    const { data, error } = await query
       .order('started_at', { ascending: false })
       .limit(1)
       .maybeSingle();

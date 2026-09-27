@@ -139,6 +139,8 @@ Automated runs in production are orchestrated by [cron-job.org](https://cron-job
    x-cron-secret: <CRON_SECRET>
    ```
 
+**Manual runs:** the dashboard's **Run scrape now** button calls `POST /api/runs/manual` (no secret). It is refused while a run is in progress (`409`) and within 10 minutes of the previous run of any kind (`429`). Manual and on-track runs are recorded with their own trigger and do not reset the schedule countdown or the overdue check, which only look at cron runs.
+
 ---
 
 ## Environment Variables Reference

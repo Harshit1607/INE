@@ -6,6 +6,9 @@ import { RunCoordinator } from '../service/run-coordinator.js';
 import { CSVExporter } from './csv-exporter.js';
 import { TrackedProduct } from '../domain/types.js';
 
+/** Minimum gap between a manual run and the previous run of any kind (protects store and Render). */
+const MANUAL_RUN_COOLDOWN_MINUTES = 10;
+
 export interface RouteDependencies {
   attemptStore: SupabaseAttemptStore;
   catalogClient: CatalogClient;
@@ -270,24 +273,27 @@ export function createRouter(deps: RouteDependencies): Router {
     }
   });
 
-  // 9. Run Health Endpoint
+  // 9. Run Health Endpoint. The schedule (countdown, overdue) is judged on cron runs only, so a
+  // manual or on-track run can never hide a broken cron job; latestRun is the latest of any trigger.
   router.get('/runs/health', async (_req: Request, res: Response) => {
     try {
-      const latestRun = await attemptStore.getLatestRun();
-      let isOverdue = false;
+      const [latestRun, latestScheduledRun] = await Promise.all([
+        attemptStore.getLatestRun(),
+        attemptStore.getLatestRun('cron')
+      ]);
+      let isOverdue = true;
       let timeSinceLastRunMinutes: number | null = null;
 
-      if (!latestRun) {
-        isOverdue = true;
-      } else {
-        const lastRunTime = new Date(latestRun.startedAt).getTime();
+      if (latestScheduledRun) {
+        const lastRunTime = new Date(latestScheduledRun.startedAt).getTime();
         timeSinceLastRunMinutes = Math.round((Date.now() - lastRunTime) / (60 * 1000));
-        // Overdue if no run for > 150 minutes (2.5 hours)
+        // Overdue if no scheduled run for > 150 minutes (2.5 hours)
         isOverdue = timeSinceLastRunMinutes > 150;
       }
 
       res.json({
         latestRun,
+        lastScheduledRunAt: latestScheduledRun?.startedAt ?? null,
         isOverdue,
         timeSinceLastRunMinutes,
         checkedAt: new Date().toISOString()
@@ -295,6 +301,39 @@ export function createRouter(deps: RouteDependencies): Router {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       res.status(500).json({ error: `Failed to check run health: ${msg}` });
+    }
+  });
+
+  // 9b. Manual run from the dashboard. Public (no secret can live in the browser), so it is
+  // rate-limited: refused while a run is active and within a cooldown after any run started.
+  router.post('/runs/manual', async (_req: Request, res: Response) => {
+    try {
+      const latestRun = await attemptStore.getLatestRun();
+      if (latestRun && latestRun.status !== 'running') {
+        const minutesSince = (Date.now() - new Date(latestRun.startedAt).getTime()) / 60000;
+        if (minutesSince < MANUAL_RUN_COOLDOWN_MINUTES) {
+          const retryAfterMinutes = Math.ceil(MANUAL_RUN_COOLDOWN_MINUTES - minutesSince);
+          res.status(429).json({
+            error: `A run started ${Math.floor(minutesSince)} min ago. Manual runs are limited to one every ${MANUAL_RUN_COOLDOWN_MINUTES} minutes; try again in ${retryAfterMinutes} min.`,
+            retryAfterMinutes
+          });
+          return;
+        }
+      }
+
+      const { run, executePromise } = await runCoordinator.startRun('manual');
+      executePromise.catch((err) => {
+        console.error(`[Router] Background manual run ${run.id} failed:`, err);
+      });
+
+      res.status(202).json({ runId: run.id, status: 'running', startedAt: run.startedAt });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('already in progress')) {
+        res.status(409).json({ error: 'A scrape run is already in progress.' });
+        return;
+      }
+      res.status(500).json({ error: `Failed to start manual run: ${msg}` });
     }
   });
 
