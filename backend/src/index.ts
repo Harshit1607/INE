@@ -97,9 +97,24 @@ app.use('/api', apiRouter);
 app.use('/', apiRouter); // Also serve at root for direct /health or /export.csv hits
 
 // Startup server
+const bootedAt = Date.now();
 const server = app.listen(port, async () => {
   console.log(`[Server] INE Price Tracker Backend listening on port ${port}`);
   console.log(`[Server] Headless: ${process.env.HEADLESS !== 'false'}, CORS Origin: ${corsOrigin}`);
+
+  // Only one instance runs, so a run still 'running' that started before this process booted belonged
+  // to a process that died (crash, out-of-memory kill, redeploy); close it instead of leaving it
+  // "running" for 20 minutes. The cutoff is boot time (minus clock-skew margin), not now, so a cron
+  // run started by the request that woke this instance is left alone.
+  if (process.env.SUPABASE_URL) {
+    try {
+      const minutesSinceBoot = (Date.now() - bootedAt + 2000) / 60000;
+      const orphaned = await attemptStore.markStaleRunsAbandoned(minutesSinceBoot);
+      if (orphaned > 0) console.log(`[Server] Marked ${orphaned} run(s) left over from a previous process as abandoned.`);
+    } catch (err: unknown) {
+      console.warn('[Server] Orphaned run recovery warning:', err instanceof Error ? err.message : String(err));
+    }
+  }
 
   // Background catalog snapshot check
   try {

@@ -53,7 +53,7 @@ A resilient, honest full-stack price and stock tracking system for INE's mock e-
 - **Data Normalisation & Validation:** Strips zero-width unicode characters (`\u200B`), non-breaking spaces, and full-width digits. Validates currency, stock quantities, and variant identities.
 - **Honest Outcomes & Database Constraints:** Database check constraint guarantees that failed scrape attempts never record false `0`s. Line charts show genuine gaps for failed runs.
 - **Exponential Backoff with Jitter:** Transient errors (`429`, `5xx`, `timeout`) are automatically retried with fresh browser contexts.
-- **Run Lock & Cold-Start Recovery:** Prevents overlapping runs; automatically marks stale crashed runs ($> 20\text{min}$) as `abandoned`.
+- **Run Lock & Cold-Start Recovery:** Prevents overlapping runs. On boot, runs left `running` by a previous (dead) process are marked `abandoned`; any run still running after $20\text{min}$ is abandoned when the next run starts.
 - **RFC 4180 CSV Export:** One-click download of all scrape attempts with exact timestamps and formatted variants.
 
 ---
