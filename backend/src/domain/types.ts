@@ -2,6 +2,7 @@ export type Outcome = 'success' | 'retried' | 'failed';
 
 export type ErrorCode =
   | 'timeout'
+  | 'stale_price'
   | 'http_429'
   | 'http_5xx'
   | 'auth_rejected'

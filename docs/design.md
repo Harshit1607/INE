@@ -94,6 +94,7 @@ Errors thrown during extraction are classified into typed codes:
 | `navigation_failed`| **Yes** | Network socket dropped or page failed to load. |
 | `invalid_price` | **Yes** | Parsed price was non-positive or NaN. |
 | `invalid_stock` | **Yes** | Stock status was empty or unparseable. |
+| `stale_price` | **Yes** | Every quote in the try came back stale ("Refreshing prices"); the stale price is never stored. |
 | `structure_changed`| **No** | Expected manifest elements missing from page (redesign). |
 | `option_mismatch` | **No** | Requested variant option does not exist on product. |
 
@@ -106,33 +107,34 @@ where $r \in [0, 1)$ provides $\pm 20\%$ randomized jitter to avoid thundering h
 
 ## 4. Frontend UI/UX Design System
 
-Monochrome: pale gray canvas, white rounded app frame, black sidebar and primary buttons, light gray tiles; colour appears only for scrape outcomes. Urbanist Variable type. Tokens live in `frontend/tailwind.config.js`.
+Monochrome: full-bleed white page (no window frame), black sidebar and primary buttons, light gray tiles; colour appears only for scrape outcomes. Urbanist Variable type. Tokens live in `frontend/tailwind.config.js`.
 
 ```
-┌──────┬──────────────────────────────────────────────┬───────────────────┐
-│ [≡]  │ INE Price Tracker        [Search catalogue…] [● Online] │ Latest readings   │
-│ [+]  │ ┌ Scrape schedule ────────────┐ ┌ Latest run ─┐ │ [All|Retried&fail]│
-│ [↻]  │ │ Next run in 1h 22m          │ │ Healthy     │ │ Saffrix Panel ₹16k│
-│ [↓]  │ │ ●────────|──|~~~ (0–3h)     │ ├ Read in run ┤ │ Pinecrest  timeout│
-│ [↗]  │ │ 4 of 5 │ 92% │ 90 attempts  │ │ 3 / 4       │ │ …                 │
-│      │ └─────────────────────────────┘ └─────────────┘ │ How readings are  │
-│      │ Tracked variants                  [+ Track]    │ taken · CSV · Store│
-│  ●   │ [card] [card] [card]                           │                   │
-└──────┴──────────────────────────────────────────────┴───────────────────┘
+┌──────┬──────────────────────────────────────────────────┬──────────────────┐
+│ [≡]  │ Dashboard                     [Search… | + Track] │ Latest readings  │
+│ [+]  │ [Tracked 5] [Success 86%] [Attempts 102] [Run 4/5]│ [All|Retried&f.] │
+│ [↻]  │ ┌ Success rate by variant ─┐ ┌ Scrape schedule ─┐ │ Saffrix  ₹16,044 │
+│ [↓]  │ │ ████████░░ bars           │ │ Next run in 1h22m│ │ Pinecrest timeout│
+│      │ └───────────────────────────┘ └ ●───|──|~ · Run ─┘ │ …                │
+│      │ Tracked variants  [card] [card] [card]    [+Track] │                  │
+│      │ └ Store catalogue (table) ─────────── Show more ──┘ │                  │
+└──────┴──────────────────────────────────────────────────┴──────────────────┘
 ```
 
 ### Key UI Features
-1. **Scrape schedule panel (`OverviewPanel`):**
+1. **KPI strip (`KpiStrip`):** tracked variants, average success rate, total scrape attempts, and last-run read count with failures.
+2. **Success rate by variant (`SuccessChart`):** horizontal bars, lowest first; black ≥90%, amber 60–89%, red <60%.
+3. **Scrape schedule (`ScheduleCard`):**
    - Cadence track from 0 to 3 h with ticks at due (2 h) and overdue (2.5 h, the backend's $150\text{ min}$ rule); a marker sits at time since the last run.
-   - Headline reads "Next run in …", "Next run due now", "Overdue by …", or "Run in progress"; the overdue zone and marker turn red.
+   - Headline reads "Next run in …", "Next run due now", "Overdue by …", or "Run in progress"; overdue turns red.
    - Cold-start state ("Waking the backend") while Render free tier spins up.
-   - Latest-run status card and a per-outcome breakdown of the last run.
-2. **Variant cards and Latest readings rail:** outcome pill, latest price, success-rate bar, stock pill; the rail filters to retried and failed readings.
-3. **Price History Chart:**
+   - Last-run outcome bar (first try / after retry / failed) and a "Run scrape now" button.
+4. **Tracked variant cards (`TrackedGrid`)** and **Latest readings rail:** price, stock, last outcome, success rate, last read; the rail filters to retried and failed readings.
+5. **Price History Chart:**
    - Built with Recharts.
    - Configured with `connectNulls={false}` so failed attempts appear as honest gaps, each marked with a red dashed reference line.
-4. **Scrape Log Table:**
+6. **Scrape Log Table:**
    - Displays all historical attempts with local time, outcome badge (`success`, `retried`, `failed`), try count, duration in seconds, manifest revision, and machine error code.
-5. **Live Search & Option Picker Modal:**
+7. **Live Search & Option Picker Modal:**
    - Debounced substring search against the indexed catalog.
    - Live variant selector with duplicate detection to prevent tracking the same variant twice.

@@ -33,7 +33,12 @@ The INE mock store (`https://demo.inelabteamdev.com`) is deliberately constructe
 - The store's click handler silently **drops ~17.5% of trusted clicks** and delays another ~17.5% by 900 ms. The scraper clicks, waits up to 3 s for the panel to leave its idle state, and re-clicks (max 4) rather than waiting out a price that will never load. There is no untrusted `element.click()` fallback: the gate records `isTrusted` and rejects it.
 
 ### E. Value-Based Waiting vs. Fixed Sleep
-- Rather than using arbitrary `sleep()` calls, the reader observes the DOM using `page.waitForFunction()` until the target selector contains resolved numeric content (ignoring "Price locked", "Hold on", loaders, or placeholders).
+- Rather than using arbitrary `sleep()` calls, the reader waits for the price panel to settle into the store's `offer-ready` or `offer-failed` state (`page.waitForSelector`), so full-width digits or other price encodings cannot make it wait forever.
+
+### E2. Stale-Quote Rejection & In-Page Re-Quotes
+- The store answers roughly one quote in four with a **stale** price: rendered at reduced opacity next to "Refreshing prices", and never refreshed by the page itself. It looks like a normal price in the DOM. The reader treats a price drawn with opacity below 1, or a panel containing "Refreshing prices", as stale and presses **Check again**.
+- An error panel ("Couldn’t load the price… `challenge_failed`") is handled the same way with **Retry**, instead of waiting out the full timeout.
+- Up to 4 quotes are requested per try. If every one is stale, the try fails with `stale_price` and the normal retry policy takes over, so a stale price is never stored.
 
 ### F. Text Normalisation & Anti-Obfuscation
 - `PriceNormalizer` systematically strips zero-width spaces (`\u200B-\u200D`), byte order marks (`\uFEFF`), directional markers (`\u202A-\u202E`), non-breaking spaces (`\u00A0`), and converts full-width numerals (`\uFF10-\uFF19`) to ASCII digits.
@@ -70,7 +75,7 @@ The INE mock store (`https://demo.inelabteamdev.com`) is deliberately constructe
 | **Sequential vs. Parallel Scraping** | Sequential (one product after another) | Render Free Tier limits RAM to 512MB. Parallel tabs risk memory pressure and store rate-limits (`429`). |
 | **Asset Blocking** | Aborting images, fonts, media, stylesheets | Cuts network payload by >80% and reduces browser RAM footprint to ~90MB. |
 | **Cron Acknowledgment** | Immediate `202 Accepted` + background execution | cron-job.org drops connections after 10–30s. Immediate acknowledgment prevents false timeouts while the scrape run completes in the background. |
-| **Run Locking & Stale Recovery** | Mutex in `scrape_runs` table with 20min timeout | Prevents overlapping cron triggers while automatically recovering if a container crashes mid-run. |
+| **Run Locking & Stale Recovery** | Mutex in `scrape_runs` table; runs left `running` by a dead process are abandoned at boot, and any run older than 20 min when a new one starts | Prevents overlapping cron triggers. A crash, out-of-memory kill or redeploy mid-run no longer leaves the dashboard showing "running" and blocking manual runs. |
 
 ---
 
@@ -105,3 +110,7 @@ During implementation, LLM assistance was utilized for boilerplate generation an
 5. **Chart Distortion on Failed Scrapes:**
    - *Initial AI suggestion:* Rendering `0` or interpolated values for failed attempts.
    - *Correction:* Graphing `0` creates false price collapse charts. Configured Recharts `connectNulls={false}` and set failed prices to `null` to render truthful gaps.
+6. **Accepting Stale Quotes as Today's Price:**
+   - *Initial AI suggestion:* Treat the first price text containing a digit as the reading.
+   - *Observed Issue:* Dashboard prices disagreed with the store. Watching the store's own React state during repeated reads showed about a quarter of quotes arrive with `pending` set; the page shows the old price dimmed with "Refreshing prices" (e.g. ₹11,727 while the real price was ₹12,261). Those were being stored as `success`.
+   - *Correction:* Detect the stale rendering, re-quote in-page with "Check again", and fail the try with `stale_price` if only stale quotes arrive. In 20 verification reads after the fix, every reading was the fresh price and every stale quote was rejected.

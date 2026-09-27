@@ -88,6 +88,7 @@ A health state indicating that the latest scrape run started more than $150\text
 | `navigation_failed` | Playwright failed to establish connection or load the product page URL. |
 | `invalid_price` | Extracted price failed validation (NaN, $\le 0$, or non-numeric). |
 | `invalid_stock` | Extracted stock string was empty or unparseable. |
+| `stale_price` | The store kept answering with a stale, dimmed quote ("Refreshing prices") after every in-page re-request. |
 | `structure_changed` | UI manifest was fetched, but expected DOM selectors could not be located on the page. |
 | `option_mismatch` | Target Option ID was not found among the product's options on the live page. |
 | `unknown` | Unhandled runtime exception occurred during execution. |

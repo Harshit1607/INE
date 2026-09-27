@@ -1,4 +1,4 @@
-import { Browser, BrowserContext, chromium } from 'playwright';
+import { Browser, BrowserContext, chromium, Locator } from 'playwright';
 import { CatalogClient } from '../catalog/catalog-client.js';
 import { PriceReader, PriceReading, ScrapeError, UIManifest } from '../domain/types.js';
 import { PriceNormalizer } from './price-normalizer.js';
@@ -12,6 +12,8 @@ const MAX_CHECK_CLICKS = 4;
 const CLICK_ACK_TIMEOUT_MS = 3000;
 /** The quote runs a client-side proof-of-work plus store-internal retries; slow on shared CPUs. */
 const PRICE_RESOLVE_TIMEOUT_MS = 20000;
+/** Quotes requested per try; the store answers some with a stale or failed quote (~25% each seen). */
+const MAX_QUOTES = 4;
 
 function sleep(ms: number): Promise<void> {
   const { promise, resolve } = Promise.withResolvers<void>();
@@ -69,6 +71,32 @@ export class PlaywrightPriceReader implements PriceReader {
       await this.browser.close();
       this.browser = null;
     }
+  }
+
+  /**
+   * Trusted click that retries until the store reacts. The store silently drops ~17.5% of clicks and
+   * delays another ~17.5% by 900 ms; a handled click swaps the panel, detaching the button. An
+   * untrusted DOM click never unlocks the gate, so there is no JS-click fallback.
+   */
+  private async clickUntilAcknowledged(button: Locator, label: string): Promise<void> {
+    for (let click = 1; click <= MAX_CHECK_CLICKS; click++) {
+      if ((await button.count()) === 0) return;
+      this.logger(`[PriceReader] Clicking '${label}' button (click ${click}/${MAX_CHECK_CLICKS})...`);
+      // Pin the element so a freshly rendered button of the next panel is not mistaken for this one.
+      const handle = await button.elementHandle({ timeout: 8000 }).catch(() => null);
+      if (!handle) return;
+      try {
+        await button.click({ timeout: 8000 }); // locator click, so the consent-banner handler runs
+      } catch (err: unknown) {
+        throw new ScrapeError('timeout', `'${label}' button not clickable: ${err instanceof Error ? err.message : String(err)}`, true);
+      }
+      const acknowledged = await handle
+        .waitForElementState('hidden', { timeout: CLICK_ACK_TIMEOUT_MS })
+        .then(() => true, () => false);
+      if (acknowledged) return;
+      this.logger(`[PriceReader] Store ignored the click; clicking again...`);
+    }
+    throw new ScrapeError('timeout', `Store ignored ${MAX_CHECK_CLICKS} '${label}' clicks`, true);
   }
 
   public async read(storeProductId: number, optionId: string): Promise<PriceReading> {
@@ -239,59 +267,51 @@ export class PlaywrightPriceReader implements PriceReader {
         if (await consentScrim.isVisible()) await panelLocator.hover();
       }
 
-      // 6. Trusted click. The store silently drops ~17.5% of clicks and delays another ~17.5% by
-      // 900 ms, so re-click until the panel leaves its idle state. An untrusted DOM click never
-      // unlocks the gate, so there is no JS-click fallback.
-      let quoteStarted = false;
-      for (let click = 1; click <= MAX_CHECK_CLICKS && !quoteStarted; click++) {
-        if ((await checkBtn.count()) === 0) {
-          quoteStarted = true;
-          break;
-        }
-        this.logger(`[PriceReader] Clicking 'Check today’s price' button (click ${click}/${MAX_CHECK_CLICKS})...`);
-        try {
-          await checkBtn.click({ timeout: 8000 });
-        } catch (err: unknown) {
-          throw new ScrapeError('timeout', `Price check button not clickable: ${err instanceof Error ? err.message : String(err)}`, true);
-        }
-        quoteStarted = await checkBtn
-          .waitFor({ state: 'detached', timeout: CLICK_ACK_TIMEOUT_MS })
-          .then(() => true, () => false);
-        if (!quoteStarted) {
-          this.logger(`[PriceReader] Store ignored the click; clicking again...`);
-        }
-      }
-      if (!quoteStarted) {
-        throw new ScrapeError('timeout', `Store ignored ${MAX_CHECK_CLICKS} price-check clicks`, true);
-      }
-
-      // 7. Wait for real value
-      this.logger(`[PriceReader] Waiting for price value resolution...`);
+      // 6. Request a quote and wait for it to settle. The store sometimes answers with a stale quote
+      // (drawn dimmed, "Refreshing prices", and never refreshed by itself) or with an error panel;
+      // neither is today's price, so press "Check again" / "Retry" and read the next quote instead.
       const priceTag = manifest.priceTag || 'strong, span';
       const priceSelector = priceValueClass ? `.${priceValueClass}` : `${priceTag}`;
+      const requoteBtn = panelLocator.getByRole('button', { name: /^(check again|retry)$/i }).first();
+      let rawPriceText: string | null = null;
+      let lastProblem: { code: 'stale_price' | 'timeout'; message: string } = { code: 'timeout', message: '' };
+      for (let quote = 1; quote <= MAX_QUOTES; quote++) {
+        await this.clickUntilAcknowledged(quote === 1 ? checkBtn : requoteBtn, quote === 1 ? 'Check today’s price' : 'Check again');
 
-      try {
-        await page.waitForFunction(
-          ([sel]) => {
-            const el = document.querySelector(sel);
-            if (!el) return false;
-            const text = el.textContent?.trim() || '';
-            if (!text) return false;
-            if (text.includes('Price locked') || text.includes('Hold on') || text.includes('Loading')) {
-              return false;
-            }
-            return /\d/.test(text);
-          },
-          [priceSelector],
-          { timeout: PRICE_RESOLVE_TIMEOUT_MS }
-        );
-      } catch {
-        const panelText = (await panelLocator.innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160);
-        throw new ScrapeError('timeout', `Price did not resolve within ${PRICE_RESOLVE_TIMEOUT_MS}ms; panel showed: "${panelText}"`, true);
+        this.logger(`[PriceReader] Waiting for quote ${quote}/${MAX_QUOTES} to settle...`);
+        try {
+          await page.waitForSelector('.offer-panel.offer-ready, .offer-panel.offer-failed', { timeout: PRICE_RESOLVE_TIMEOUT_MS });
+        } catch {
+          const panelText = (await panelLocator.innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160);
+          throw new ScrapeError('timeout', `Price did not resolve within ${PRICE_RESOLVE_TIMEOUT_MS}ms; panel showed: "${panelText}"`, true);
+        }
+
+        const state = await page.evaluate(([sel]) => {
+          const panel = document.querySelector('.offer-panel');
+          const el = document.querySelector(sel);
+          return {
+            failed: Boolean(panel?.classList.contains('offer-failed')),
+            panelText: ((panel as HTMLElement | null)?.innerText ?? '').replace(/\s+/g, ' ').slice(0, 160),
+            // A pending quote renders the price at reduced opacity next to "Refreshing prices".
+            stale: !el || Number(getComputedStyle(el).opacity) < 1 || /refreshing prices/i.test(panel?.textContent ?? '')
+          };
+        }, [priceSelector]);
+
+        if (state.failed) {
+          lastProblem = { code: 'timeout', message: `Store could not quote a price: "${state.panelText}"` };
+        } else if (state.stale) {
+          lastProblem = { code: 'stale_price', message: `Store only returned a stale quote: "${state.panelText}"` };
+        } else {
+          rawPriceText = await page.locator(priceSelector).first().innerText();
+          break;
+        }
+        this.logger(`[PriceReader] ${lastProblem.message}; requesting a fresh quote...`);
+      }
+      if (rawPriceText === null) {
+        throw new ScrapeError(lastProblem.code, `${lastProblem.message} (after ${MAX_QUOTES} quotes)`, true);
       }
 
-      // 8. Extract price text and stock text
-      const rawPriceText = await page.locator(priceSelector).first().innerText();
+      // 7. Extract price text and stock text
       this.logger(`[PriceReader] Raw price text: "${rawPriceText}"`);
 
       let rawStockText = 'In Stock';
