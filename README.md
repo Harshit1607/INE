@@ -2,7 +2,7 @@
 
 A resilient, honest full-stack price and stock tracking system for INE's mock e-commerce store ([demo.inelabteamdev.com](https://demo.inelabteamdev.com)). Built with Node.js, TypeScript, Express, Playwright, React, Tailwind CSS, Supabase Postgres, and cron-job.org.
 
-- **Live dashboard:** https://ine-cy4qyry4v-harshit-barejas-projects.vercel.app/
+- **Live dashboard:** https://ine-harshit-barejas-projects.vercel.app/
 - **Backend API:** https://ine-613p.onrender.com (health: [`/api/health`](https://ine-613p.onrender.com/api/health), schedule health: [`/api/runs/health`](https://ine-613p.onrender.com/api/runs/health))
 - **Source:** https://github.com/Harshit1607/INE
 - **Design note** (reliability, trade-offs, AI corrections): [`DESIGN_NOTE.md`](DESIGN_NOTE.md)
